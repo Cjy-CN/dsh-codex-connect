@@ -1,6 +1,6 @@
 /**
- * Optional OpenAI Codex subscription bundle: registers the ChatGPT-backed
- * Codex Responses route while keeping OAuth setup as an explicit CLI action.
+ * Optional OpenAI Codex subscription bundle with ChatGPT OAuth, Codex models,
+ * standalone search, browser settings, and vision-aware image input.
  * @module @dsh-external/dsh-openai-codex
  */
 
@@ -9,10 +9,25 @@ import { randomUUID } from 'node:crypto'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-agent'
-import { createPiAiCatalogAuthAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-web'
-import { snapshotWebSearchModelRequest } from '@deepseek-ai/dsh-web'
+import type {} from '@deepseek-ai/dsh-host-webserver'
+import type {} from '@deepseek-ai/dsh-tools'
+import type {} from '@deepseek-ai/dsh-fs'
+import { createOpenAICodexAdapter } from './adapter.ts'
+import { registerOpenAICodexAuthRoutes } from './auth-routes.ts'
+import { viewImageTool } from './view-image.ts'
+import {
+  installOpenAICodexSearchEvent,
+  recordOpenAICodexSearchRequest,
+} from './search-event.ts'
+
+export { VIEW_IMAGE_TOOL_NAME } from './view-image.ts'
+export {
+  installOpenAICodexSearchEvent,
+  OPENAI_CODEX_SEARCH_MODEL_REQUEST_EVENT,
+  recordOpenAICodexSearchRequest,
+} from './search-event.ts'
 import {
   DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE,
   DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
@@ -81,13 +96,12 @@ export const Config: z<Config> = z.object({
  * @param config - standalone-search model, access mode, context size, and output budget.
  */
 export function apply(ctx: Context, config: Config): void {
+  installOpenAICodexSearchEvent()
   const credentials = new OpenAICodexCredentialStore()
-  ctx.llm.registerAdapter([OPENAI_CODEX_PROVIDER], createPiAiCatalogAuthAdapter({
-    provider: OPENAI_CODEX_PROVIDER,
-    displayName: 'OpenAI Codex',
-    credentials,
-    resolveAttachments: () => ctx.get('attachments'),
-  }))
+  ctx.llm.registerAdapter(
+    [OPENAI_CODEX_PROVIDER],
+    createOpenAICodexAdapter(credentials, () => ctx.get('attachments')),
+  )
   ctx.web.registerSearchProvider(new OpenAICodexSearchProvider({
     credentials,
     model: config.searchModel ?? DEFAULT_OPENAI_CODEX_SEARCH_MODEL,
@@ -95,11 +109,8 @@ export function apply(ctx: Context, config: Config): void {
     contextSize: config.searchContextSize ?? DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE,
     maxOutputTokens: config.searchMaxOutputTokens ?? DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
     resolveRequestId: () => String(ctx.get('agents')?.currentInitiator()?.session.id ?? randomUUID()),
-    recordRequest: request => {
-      ctx.get('agents')?.currentInitiator()?.session.append(
-        'web/search-model-request',
-        snapshotWebSearchModelRequest(OPENAI_CODEX_PROVIDER, request),
-      )
-    },
+    recordRequest: request => { recordOpenAICodexSearchRequest(ctx, request) },
   }))
+  ctx.inject(['webServer'], webCtx => registerOpenAICodexAuthRoutes(webCtx, credentials))
+  ctx.inject(['tools', 'fs', 'attachments'], toolCtx => toolCtx.tools.register(viewImageTool(toolCtx)))
 }

@@ -1,70 +1,68 @@
-# Installation Runbook for Automation Agents
+# Installation Runbook for CLI Agents
 
-This file is the complete installation procedure for Codex, Claude Code, and other automation agents. Do not inspect this repository's source or design document to infer additional steps.
+This is the complete installation procedure for Codex, Claude Code, and other automation agents. Do not inspect the plugin source or another plugin to infer missing steps.
 
 ## Objective
 
-Install this checkout as a local dsh bundle, enable the `openai-codex` model route and live Codex search in one dsh profile, complete ChatGPT OAuth, and verify the effective composition.
+Install this checkout as a local dsh bundle, enable the `openai-codex` model and search routes in the requested profile, preserve existing user configuration, and verify non-secret login state.
 
-## Required inputs
+## Inputs and defaults
 
-- **Plugin directory:** the absolute path to this repository. If it is not already checked out, clone `git@github.com:Yan-Zero/dsh-codex.git` into a user-approved source directory.
-- **Profile:** use the profile named by the user. If none is named, use `web`.
-- **dsh launcher:** use a build from the modified `Yan-Zero/deepseek-harness` fork containing commit `b1d42fc99f` or a descendant. Prefer an installed executable built from that fork. If unavailable, set the compatible source checkout as the command's working directory and run `pnpm dsh` in place of `dsh` in every command below. Do not use `pnpm --dir`; Corepack can otherwise select the caller's pnpm version before entering the Harness project.
+- **Plugin checkout:** use the directory supplied by the user. If absent, clone `git@github.com:Yan-Zero/dsh-codex.git` into a user-approved source directory.
+- **Profile:** use the profile named by the user; otherwise use `web`.
+- **Launcher:** prefer an installed `dsh`. When operating from a DeepSeek Harness checkout, set that checkout as the command working directory and replace every `dsh` invocation below with `pnpm dsh`.
+- **Search mode:** use `live` unless the user explicitly requests `cached` or `indexed`.
 
-The unmodified upstream/public dsh release is incompatible. The required fork commit exports `createPiAiCatalogAuthAdapter()` from `@deepseek-ai/dsh-llm-pi-ai` and `snapshotWebSearchModelRequest()` from `@deepseek-ai/dsh-web`. If the commit or either export is unavailable, stop and report the compatibility failure. Do not rewrite this plugin to bypass it.
+This plugin uses standard DeepSeek Harness plugin APIs. Do not patch, fork, or commit changes to the dsh repository during installation.
 
-## Safety rules
+## Safety requirements
 
 - Never read, print, copy, move, or modify `~/.codex/auth.json`.
-- Never print the contents of `$DSH_HOME/.openai-codex-auth.json`.
-- Do not add a credential, authorization code, redirect URL, or account identifier to Git.
-- Preserve all unrelated rows in the profile's `cordis.patch.yml`.
-- Use an absolute local `link:` specification. Do not write a relative path to another repository into this repository.
-- OAuth requires the user to approve OpenAI's page. Opening the browser and waiting for the callback are automated; the agent must pause for the user's approval rather than attempting to handle account credentials.
+- Never print `$DSH_HOME/.openai-codex-auth.json` or include it in diagnostics.
+- Never add credentials, OAuth URLs/codes, tokens, account identifiers, or generated profile state to Git.
+- Preserve every unrelated profile dependency, bundle, and `cordis.patch.yml` row.
+- Use an absolute `link:` path for the plugin checkout. Do not add relative paths into this repository.
+- OAuth approval belongs to the user. Automate opening/waiting where possible, but never request the user's OpenAI password or attempt to complete their account page.
 
 ## Procedure
 
-### 1. Resolve the launcher and paths
+### 1. Validate the checkout and launcher
 
-Confirm all of the following before changing the profile:
+Require these files in the plugin directory:
 
-1. The plugin directory contains `package.json`, `cordis.patch.yml`, and `lib/index.js`.
-2. `package.json` names `@dsh-external/dsh-openai-codex`.
-3. The dsh launcher can execute `--help` or `--version` without an installation error.
-4. The absolute plugin path is normalized for a pnpm link specification. On Windows, use forward slashes, for example `E:/source/ai/dsh/dsh-codex`.
+- `package.json`
+- `cordis.patch.yml`
+- `lib/index.js`
+- `lib/client.js`
+- `lib/bin.js`
 
-When using a Harness source checkout, verify the required fork commit before installation:
+Require `package.json.name` to equal `@dsh-external/dsh-openai-codex`. If any check fails, stop and report that the checkout needs a completed build or the correct repository. Do not run a package installation or rebuild merely to install a checkout whose committed `lib/` is present.
 
-```sh
-git merge-base --is-ancestor b1d42fc99f HEAD
-```
+Run `dsh --version` or `dsh --help`. If using a source checkout, run `pnpm dsh --version` or `pnpm dsh --help` from that checkout. Stop on launcher failure.
 
-Exit code `0` is required. Any other result means this checkout cannot load the plugin. Do not continue with upstream `deepseek-ai/deepseek-harness` or an older fork commit.
+Normalize the absolute plugin path for pnpm. On Windows use forward slashes, for example `E:/source/ai/dsh/openai-codex`.
 
-The committed `lib/` directory is the runtime artifact. Do not run `pnpm install` or rebuild the plugin merely to install it.
+### 2. Link the bundle
 
-### 2. Install the bundle
-
-Run exactly one of these forms, substituting the selected profile and absolute plugin path:
+Substitute the selected profile and absolute path:
 
 ```sh
 dsh plugin --profile web add link:E:/absolute/path/to/dsh-codex
 ```
 
-From a source checkout, set the working directory to `E:/absolute/path/to/deepseek-harness`, then run:
+From a Harness source checkout, use:
 
 ```sh
 pnpm dsh plugin --profile web add link:E:/absolute/path/to/dsh-codex
 ```
 
-This command is safe to repeat. A successful installation adds `@dsh-external/dsh-openai-codex` to the profile dependencies and bundle list.
+The command is idempotent. It must leave `@dsh-external/dsh-openai-codex` in both the profile dependency map and `dsh.profile.bundles` list exactly once.
 
-### 3. Enable live Codex search
+### 3. Configure search without replacing user settings
 
-Resolve the profile directory from dsh's home. By default it is `~/.dsh/profiles/<profile>`; when `DSH_HOME` is set, use `$DSH_HOME/profiles/<profile>`.
+Resolve the profile directory as `$DSH_HOME/profiles/<profile>`; when `DSH_HOME` is unset, use `~/.dsh/profiles/<profile>`.
 
-Edit `cordis.patch.yml` in that profile. Preserve every unrelated entry. Ensure it contains exactly one override for `llm-openai-codex` with `searchMode: live`:
+Edit that profile's `cordis.patch.yml`, preserving all unrelated rows. Ensure exactly one row with id `llm-openai-codex` contains the selected search mode:
 
 ```yaml
 - id: llm-openai-codex
@@ -72,11 +70,9 @@ Edit `cordis.patch.yml` in that profile. Preserve every unrelated entry. Ensure 
     searchMode: live
 ```
 
-If the file is the initial `[]`, replace only that token with the row above. If the id already exists, update its `config.searchMode` instead of appending a duplicate. Preserve other fields on that row.
+If the file contains only `[]`, replace that token with the row. If the id already exists, update `config.searchMode` on that row and retain its other fields. Never append a duplicate id.
 
-Use `cached` or `indexed` only when the user explicitly requests that mode. `live` matches `codex --search` and is the default for this runbook.
-
-### 4. Validate composition before login
+### 4. Validate the effective composition
 
 Run:
 
@@ -84,70 +80,91 @@ Run:
 dsh --profile web --dump-config
 ```
 
-The effective output must contain all four facts:
+Require all of these facts:
 
-- an `llm-openai-codex` row whose package is `@dsh-external/dsh-openai-codex`
-- `agent-default-model` configured with provider `openai-codex` and model `gpt-5.6-sol`
-- the `web` row configured with `searchProvider: openai-codex`
-- the `llm-openai-codex` row configured with `searchMode: live`
+- `llm-openai-codex` loads `@dsh-external/dsh-openai-codex`;
+- `agent-default-model` selects provider `openai-codex` and model `gpt-5.6-sol` unless a later user setting overrides it;
+- the `web` row selects `searchProvider: openai-codex`;
+- `llm-openai-codex.config.searchMode` equals the selected mode.
 
-If dump-config fails or any fact is absent, stop and report the exact diagnostic. Do not start OAuth against a profile whose composition is invalid.
+Stop and report the exact diagnostic if composition fails. Do not start OAuth while the bundle is absent or malformed.
 
 ### 5. Reuse or create the dsh login
 
-Check the non-secret status:
+Check non-secret status:
 
 ```sh
 dsh plugin --profile web exec dsh-openai-codex status
 ```
 
-- If it reports `signed in`, skip login.
-- If it reports `signed out`, run:
+If it reports `signed in`, do not start another login.
+
+If signed out and an interactive terminal is available, run:
 
 ```sh
 dsh plugin --profile web exec dsh-openai-codex login
 ```
 
-The command opens OpenAI's authorization page and waits for a localhost callback. Tell the user to complete the page, then continue waiting. Do not ask the user to paste a token. If browser login is impossible because the host has no browser, rerun with `login --device-code` and give the displayed verification URL and user code to the user.
+The command opens OpenAI's page and waits for its localhost callback. Tell the user to approve the page, then keep waiting for command completion. Never ask the user to paste a token. If the machine cannot open a browser, use:
 
-After the callback, require the command to report that credentials were saved under the dsh home. Then run `status` again and require `signed in`.
+```sh
+dsh plugin --profile web exec dsh-openai-codex login --device-code
+```
 
-### 6. Final verification
+For a local Web profile, the equivalent user path is **Settings → OpenAI Codex → Sign in with ChatGPT**. Do not require both GUI and CLI login.
 
-Repeat `dsh --profile <profile> --dump-config` and the status command. Confirm that:
+After approval, rerun `status` and require `signed in`.
 
-- the bundle remains installed after reconciliation;
-- live search remains present in the user patch;
-- status is signed in;
-- `~/.codex/auth.json` was not modified by the procedure.
+### 6. Verify Web integration
 
-Do not display either auth file to prove the last item. Compare file metadata captured before and after only when the user explicitly requests such proof; otherwise rely on the plugin's separate credential path.
+For the `web` profile, start `dsh web` if the user wants the application running. From the same machine, require:
 
-Report the installed profile, plugin path, selected search mode, and signed-in state. Do not include the OAuth URL, authorization code, token expiry claims, account id, or auth-file contents.
+- the root page loads;
+- its boot manifest contains `@dsh-external/dsh-openai-codex` and the plugin `client.js` URL;
+- `GET /plugins/dsh-openai-codex/auth/status` returns a JSON status without credentials;
+- Settings contains an **OpenAI Codex** section.
+
+Do not call the login endpoint solely as a health check because it intentionally starts an OAuth operation.
+
+The Web composer already owns image paste/drop. Do not patch dsh to add Ctrl+V support. The bundle adds `view_image`; its model route must explicitly advertise image input before the tool returns an image.
+
+### 7. Report completion
+
+Report only:
+
+- installed profile;
+- absolute plugin checkout path;
+- selected search mode;
+- signed-in or signed-out state;
+- whether the Web client entry was detected.
+
+Do not report OAuth URLs, authorization codes, token timestamps, account ids, or auth-file contents.
 
 ## Failure handling
 
-- **`dsh-openai-codex` executable not found:** confirm the profile dependency resolves to this checkout and `lib/bin.js` exists, then repeat the `add link:<absolute-path>` command.
-- **Missing fork commit or Harness exports:** update or switch to `Yan-Zero/deepseek-harness` at `b1d42fc99f` or a descendant. Do not add relative Harness paths to this plugin.
-- **Duplicate provider error:** remove a manually configured `llm-pi-ai.providers.openai-codex` route from the profile; the dedicated bundle owns that route.
-- **401 or 403 after a prior login:** run the dedicated login command again. Do not copy Codex CLI credentials.
-- **OAuth callback cannot bind:** use `--device-code`.
-- **Profile patch parse failure:** repair only the `llm-openai-codex` row while preserving unrelated entries, then rerun dump-config.
-- **Install succeeds but dump-config lacks the bundle:** repeat the plugin add command and inspect only the profile's `package.json` bundle list and dsh's command diagnostic. Do not inspect plugin implementation files.
+- **Executable not found:** confirm the profile resolves this checkout and `lib/bin.js` exists, then repeat the absolute `link:` add command.
+- **Client entry missing:** confirm `lib/client.js`, the `./client` package export, and `dsh.client` metadata exist in the checkout; repeat the add command and restart dsh.
+- **Duplicate provider:** remove only a manually configured `llm-pi-ai.providers.openai-codex` route. The dedicated bundle owns this route.
+- **401/403 after login:** run the dedicated login again. Do not copy Codex CLI credentials.
+- **OAuth callback cannot bind:** retry with `--device-code`.
+- **Browser account route returns 403:** browser login is intentionally loopback-only; use the CLI on the dsh host.
+- **Profile patch parse failure:** repair only the `llm-openai-codex` row and preserve unrelated rows, then rerun `--dump-config`.
+- **Image refusal:** select a Codex model whose catalog explicitly includes image input; text-only and unknown-capability models are rejected intentionally.
+- **A session reports unknown `web/search-model-request`:** that event came from the discontinued fork implementation, not this plugin. Ask before deleting or migrating the named session; never alter all sessions automatically.
 
-## Idempotent update
+## Updating
 
-For an existing checkout, update it with the repository's normal Git workflow, then repeat steps 2 through 6. The absolute `link:` dependency continues to point at the checkout, and the repeated add command reconciles the profile without creating a second bundle entry.
+Update the checkout using its normal Git workflow, then repeat steps 2, 4, 5, and 6. An absolute `link:` continues to point at the same directory; the repeated add command reconciles the profile without adding a duplicate bundle.
 
 ## Removal
 
-When the user explicitly requests removal:
+Only when explicitly requested:
 
 ```sh
 dsh plugin --profile web remove @dsh-external/dsh-openai-codex
 ```
 
-Remove the `llm-openai-codex` override from the profile patch without changing other rows. Credential deletion is a separate action and must be explicitly requested:
+Remove only the `llm-openai-codex` row from the profile patch. Credential deletion is separate and requires explicit authorization:
 
 ```sh
 dsh plugin --profile web exec dsh-openai-codex logout

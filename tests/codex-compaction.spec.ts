@@ -85,7 +85,7 @@ describe('OpenAI Codex compaction request', () => {
       type: 'oauth',
       access: accessToken('account-1'),
       refresh: 'refresh-token',
-      expires: Date.now() + 60_000,
+      expires: Date.now() + 3_600_000,
       accountId: 'account-1',
     }))
 

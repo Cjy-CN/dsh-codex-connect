@@ -3,6 +3,7 @@ packages:
 
 allowBuilds:
   '@google/genai': false
+  koffi: false
   protobufjs: false
 
-autoInstallPeers: false
+autoInstallPeers: true

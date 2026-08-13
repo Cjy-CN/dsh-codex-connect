@@ -2,54 +2,57 @@
 
 [English](README.md) | 中文
 
-通过 OpenAI Codex 登录流程，在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 中使用 ChatGPT 订阅，无需 OpenAI Platform API 密钥。
+通过 OpenAI Codex 登录流程，在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 中使用 ChatGPT 订阅：无需 OpenAI Platform API Key，也无需修改 dsh 源码。
 
-> [!IMPORTANT]
-> 本插件必须配合修改版 [`Yan-Zero/deepseek-harness`](https://github.com/Yan-Zero/deepseek-harness) fork 使用，要求包含 commit `b1d42fc99f`（`feat: support externally authenticated providers`）或其后续提交。插件无法加载于未经修改的 upstream／公开版 dsh。该 fork 提供本 bundle 所需的提供方原生 OAuth 适配器入口，以及可持久化的辅助搜索请求事件。
+`dsh-codex` 是一个独立的 dsh bundle，提供：
 
-本插件为 dsh 添加一条完整的 `openai-codex` 路由：
+- 在 dsh 设置面板或独立 CLI 中完成 ChatGPT OAuth 登录，并自动刷新 token
+- Codex GPT 模型目录；账号提供视觉模型时自动声明其图片输入能力
+- 经标准 LLM 服务运行的流式响应、工具调用、推理回放、提示词缓存与 dsh 压缩
+- 通过 dsh 现有 `web_search` 工具使用 Codex 独立联网搜索
+- 可读取本地路径或 HTTP(S) 图片 URL 的 `view_image` 工具
+- 复用 dsh Web 输入框的粘贴和拖放图片能力
 
-- ChatGPT OAuth 登录及 token 自动刷新
-- Codex GPT 模型目录；账号可用时包括 `gpt-5.6-sol`
-- 经 dsh 现有 LLM 路径提供流式响应、工具调用、图片、推理回放与提示词缓存
-- 面向无状态 Codex 对话的 dsh 压缩
-- 通过 dsh 普通 `web_search` 工具使用 Codex 独立搜索后端
-- `cached`、`indexed`、`live` 三种搜索模式
-
-OpenAI 在 [Codex 认证指南](https://learn.chatgpt.com/docs/auth.md)中明确区分 ChatGPT 订阅登录与按量计费的 API 密钥访问。本项目只将前者用于 ChatGPT Codex 后端，不会把订阅转换成通用 OpenAI API 凭据。
+ChatGPT 订阅认证与按量计费的 OpenAI API 是不同产品。本插件只使用 ChatGPT Codex 后端，不会把订阅转换成通用 OpenAI API 凭据。
 
 ## 安装
 
-本插件是独立的 dsh bundle。仓库包含构建产物，因此本地 checkout 可以直接安装：
+仓库包含运行时构建，可以直接链接 checkout：
 
 ```sh
 dsh plugin --profile web add link:/absolute/path/to/dsh-codex
-dsh plugin --profile web exec dsh-openai-codex login
 dsh web
 ```
 
-请把路径替换为本仓库的绝对目录。登录命令会打开浏览器并等待 localhost 回调。无界面主机可以使用 device-code 登录：
+打开 **设置 → OpenAI Codex → 使用 ChatGPT 登录**。插件会打开 OpenAI 授权页面，并通过 localhost 回调完成登录。账号页面只显示不敏感的状态和到期时间。
+
+终端和无界面环境仍可使用 CLI：
 
 ```sh
+dsh plugin --profile web exec dsh-openai-codex login
 dsh plugin --profile web exec dsh-openai-codex login --device-code
-```
-
-Codex、Claude Code 及其他自动化 agent 应直接遵循 [INSTALL.md](INSTALL.md)。该文档是一份完整且可重复执行的安装 runbook，无需阅读源码或设计文档。
-
-常用账号命令：
-
-```sh
 dsh plugin --profile web exec dsh-openai-codex status
 dsh plugin --profile web exec dsh-openai-codex logout
 ```
 
-bundle 会为新建 agent 选择 `openai-codex` / `gpt-5.6-sol`，并选择 Codex 搜索提供方。dsh settings 中已经保存的模型仍然优先；模型选择器也可以切换到当前账号可用的其他 Codex 模型。
+Codex、Claude Code 及其他自动化 agent 应直接遵循 [INSTALL.md](INSTALL.md)。它是一份完整且可重复执行的 runbook，不要求安装者阅读源码或设计文档。
 
-所需 fork commit 分别从 `@deepseek-ai/dsh-llm-pi-ai` 与 `@deepseek-ai/dsh-web` 导出 `createPiAiCatalogAuthAdapter()` 和 `snapshotWebSearchModelRequest()`。准确的兼容性检查见 [INSTALL.md](INSTALL.md)。
+bundle 会为新建 agent 选择 `openai-codex` / `gpt-5.6-sol`，并选择 Codex 搜索提供方。dsh settings 中已经保存的模型仍然优先；模型选择器可以切换到当前账号可用的其他 Codex 模型。
+
+## 图片
+
+图片功能使用 dsh 的持久附件路径：
+
+- 在 Web 输入框中按 <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴图片，或把图片拖入输入框；
+- 让模型调用 `view_image`，把 `source` 设为本地绝对／相对路径或 HTTP(S) URL；
+- 在当前 dsh 附件限制内支持 PNG、JPEG、WebP 与 GIF；
+- 只有明确声明支持图片输入的模型才能接收图片。
+
+工具在返回实际图片块之前，会先验证图片并把字节持久化为 dsh 附件。本地路径经过已配置的文件系统服务；远程重定向次数受限，URL 中也不允许嵌入凭据。
 
 ## 搜索
 
-提供方会把 dsh 现有的 `web_search` 工具连接到官方 Codex 客户端使用的独立搜索协议。搜索结果会成为普通 dsh 文本及 HTTP(S) 引用，因此后续轮次和压缩都会保留同一份工具历史。
+提供方会把 dsh 的 `web_search` 工具连接到 Codex 使用的独立搜索协议。搜索结果是普通 dsh 文本和 HTTP(S) 引用，因此后续轮次与压缩会保留同一份工具历史。
 
 在 profile patch 中配置 `llm-openai-codex`：
 
@@ -60,8 +63,6 @@ bundle 会为新建 agent 选择 `openai-codex` / `gpt-5.6-sol`，并选择 Code
     searchContextSize: medium
 ```
 
-可用字段：
-
 | 字段 | 默认值 | 可选值 |
 |---|---:|---|
 | `searchModel` | `gpt-5.6-sol` | Codex 模型 id |
@@ -69,38 +70,37 @@ bundle 会为新建 agent 选择 `openai-codex` / `gpt-5.6-sol`，并选择 Code
 | `searchContextSize` | `medium` | `low`、`medium`、`high` |
 | `searchMaxOutputTokens` | `10000` | 正整数 |
 
-这些模式遵循 [Codex 官方搜索配置](https://learn.chatgpt.com/docs/config-file/config-basic#web-search-mode)；`live` 对应 `codex --search`。
+每个已经解析默认值且不含凭据的辅助请求，都会在发送前记录为专用的 `web/openai-codex-search-llm-request` 会话事件。该事件由本插件拥有并注册，不需要通用搜索事件或 dsh fork。
 
 ## 凭据与隐私
 
 dsh 登录与 Codex CLI／Desktop 相互独立：
 
-- 凭据存储于 `$DSH_HOME/.openai-codex-auth.json`，默认位于 `~/.dsh`
-- 文件原子写入，token 刷新会在本地 dsh 进程之间加锁
-- status 与诊断不会打印 token 值
-- 绝不复制或修改 `~/.codex/auth.json`
+- 凭据存储于 `$DSH_HOME/.openai-codex-auth.json`，默认位于 `~/.dsh`；
+- 文件原子写入，token 刷新会在本地 dsh 进程之间加锁；
+- 浏览器状态和诊断不会返回 token 值；
+- 绝不复制或修改 `~/.codex/auth.json`。
 
-分离存储可以避免两个客户端竞争同一个会轮换的 refresh token。移除 bundle 不会删除凭据；需要移除本地账号时请运行 `logout`。
+分离存储可以避免两个客户端竞争同一个会轮换的 refresh token。移除 bundle 不会删除凭据；需要移除本地账号时，请使用账号页面或 `logout` 命令。
 
 ## 兼容性说明
 
-- ChatGPT 套餐资格、模型权限、配额及 Codex 后端行为由 OpenAI 控制，可能发生变化。
+- 插件只使用标准 dsh 插件表层，不要求修改版 Harness checkout。
+- ChatGPT 套餐资格、模型权限、配额及后端行为由 OpenAI 控制，可能发生变化。
 - Codex 端点不执行普通 Responses 的 `max_output_tokens` 字段。压缩可以工作，但该路由无法在服务端落实配置的摘要上限。
-- 本 bundle 提供认证、模型传输和搜索。文件系统、shell、skills、MCP、subagents、权限及 `web_search` 工具本身仍来自当前 dsh profile。
+- 文件系统、shell、skills、MCP、subagents、权限、附件、压缩和 `web_search` 工具本身仍来自当前 dsh profile。
 - 独立搜索端点不是公开的 OpenAI Platform API；兼容性取决于固定版本的 Codex／pi-ai 实现。
 
-协议、回放、持久化与失败处理细节见[设计文档](docs/design.zh.md)。
+协议、持久化与生命周期细节见[设计文档](docs/design.zh.md)。
 
 ## 开发
-
-dsh 包是 peer dependencies。运行源码测试时，请由兼容的 dsh workspace 提供这些包，然后执行：
 
 ```sh
 pnpm install
 pnpm run check
 ```
 
-`pnpm run check` 会执行严格 TypeScript 检查、16 项聚焦测试与可发布构建。
+该检查会执行严格的 Host 与浏览器 TypeScript 检查、聚焦测试以及两个运行时 bundle 的构建。
 
 ## 许可证
 
