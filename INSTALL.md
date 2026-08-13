@@ -10,7 +10,7 @@ Install this checkout as a local dsh bundle, enable the `openai-codex` model rou
 
 - **Plugin directory:** the absolute path to this repository. If it is not already checked out, clone `git@github.com:Yan-Zero/dsh-codex.git` into a user-approved source directory.
 - **Profile:** use the profile named by the user. If none is named, use `web`.
-- **dsh launcher:** prefer an installed `dsh` executable. If unavailable and a DeepSeek Harness source checkout is present, run its package script with `pnpm --dir <DSH_REPOSITORY> dsh` in place of `dsh` in every command below.
+- **dsh launcher:** prefer an installed `dsh` executable. If unavailable and a DeepSeek Harness source checkout is present, set that checkout as the command's working directory and run `pnpm dsh` in place of `dsh` in every command below. Do not use `pnpm --dir`; Corepack can otherwise select the caller's pnpm version before entering the Harness project.
 
 The compatible Harness build must export `createPiAiCatalogAuthAdapter()` from `@deepseek-ai/dsh-llm-pi-ai` and `snapshotWebSearchModelRequest()` from `@deepseek-ai/dsh-web`. If either export is unavailable, stop and report that the Harness checkout must include the dsh Codex extension-point changes. Do not rewrite this plugin to bypass them.
 
@@ -44,8 +44,10 @@ Run exactly one of these forms, substituting the selected profile and absolute p
 dsh plugin --profile web add link:E:/absolute/path/to/dsh-codex
 ```
 
+From a source checkout, set the working directory to `E:/absolute/path/to/deepseek-harness`, then run:
+
 ```sh
-pnpm --dir E:/absolute/path/to/deepseek-harness dsh plugin --profile web add link:E:/absolute/path/to/dsh-codex
+pnpm dsh plugin --profile web add link:E:/absolute/path/to/dsh-codex
 ```
 
 This command is safe to repeat. A successful installation adds `@dsh-external/dsh-openai-codex` to the profile dependencies and bundle list.
