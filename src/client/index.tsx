@@ -17,7 +17,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 /** Stable browser-plugin name. */
-export const name = 'dsh-openai-codex-client'
+export const name = 'dsh-codex-client'
 /** Client services required by the settings contribution. */
 export const inject = ['slots', 'locale']
 

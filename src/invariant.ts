@@ -1,12 +1,12 @@
 /**
- * Package-owned invariant companion for `@dsh-external/dsh-openai-codex`.
- * @module @dsh-external/dsh-openai-codex/invariant
+ * Package-owned invariant companion for `dsh-codex`.
+ * @module dsh-codex/invariant
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
-const PACKAGE_NAME = '@dsh-external/dsh-openai-codex'
+const PACKAGE_NAME = 'dsh-codex'
 
 /** Cordis companion plugin name. */
 export const name = 'openai-codex-invariant'

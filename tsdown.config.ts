@@ -1,6 +1,6 @@
 import type { UserConfig } from 'tsdown'
 
-const PLUGIN_ID = '@dsh-external/dsh-openai-codex'
+const PLUGIN_ID = 'dsh-codex'
 const CLIENT_EXTERNALS = [
   'react',
   'react/jsx-runtime',
@@ -26,6 +26,7 @@ export default [
     clean: true,
     deps: {
       neverBundle: [
+        '@earendil-works/pi-ai',
         '@deepseek-ai/schemastery',
         '@deepseek-ai/cordis',
         '@deepseek-ai/dsh-agent',

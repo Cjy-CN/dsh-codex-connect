@@ -17,12 +17,14 @@ ChatGPT 订阅认证与按量计费的 OpenAI API 是不同产品。本插件只
 
 ## 安装
 
-仓库包含运行时构建，可以直接链接 checkout：
+从 npm 把预构建 bundle 安装到选定的 dsh profile：
 
 ```sh
-dsh plugin --profile web add link:/absolute/path/to/dsh-codex
+dsh plugin --profile web add dsh-codex
 dsh web
 ```
+
+从 DeepSeek Harness 源码 checkout 运行时，使用 `pnpm dsh plugin --profile web add dsh-codex`。开发插件时仍可用 `link:/absolute/path/to/dsh-codex` 安装本地 checkout。
 
 打开 **设置 → OpenAI Codex → 使用 ChatGPT 登录**。插件会打开 OpenAI 授权页面，并通过 localhost 回调完成登录。账号页面会显示实时 Codex 额度进度条与精确剩余百分比；只有账号接口提供信用余额或工作区限额时，才会一并显示精确数值。
 

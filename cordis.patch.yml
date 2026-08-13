@@ -12,4 +12,4 @@
 
 - insert:
     - id: llm-openai-codex
-      name: '@dsh-external/dsh-openai-codex'
+      name: dsh-codex

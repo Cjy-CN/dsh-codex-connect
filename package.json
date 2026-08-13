@@ -1,10 +1,10 @@
 {
-  "name": "@dsh-external/dsh-openai-codex",
+  "name": "dsh-codex",
   "description": "ChatGPT OAuth, Codex models, standalone search, and image input for DeepSeek Harness",
   "version": "0.2.1",
-  "private": true,
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "repository": {
     "type": "git",
@@ -24,7 +24,8 @@
     "build": "pnpm run typecheck && tsdown",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.client.json",
-    "check": "pnpm run typecheck && pnpm run test && pnpm run build"
+    "check": "pnpm run typecheck && pnpm run test && pnpm run build",
+    "prepublishOnly": "pnpm run check"
   },
   "exports": {
     ".": {
@@ -60,10 +61,8 @@
       "platform": "web"
     }
   },
-  "dependencies": {
-    "@earendil-works/pi-ai": "^0.82.1"
-  },
   "peerDependencies": {
+    "@earendil-works/pi-ai": "^0.82.1",
     "@deepseek-ai/cordis": "^4.0.1-rc.1",
     "@deepseek-ai/dsh-agent": "*",
     "@deepseek-ai/dsh-atomic-write": "*",
@@ -81,6 +80,7 @@
     "react": "^18.2.0"
   },
   "devDependencies": {
+    "@earendil-works/pi-ai": "0.82.1",
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/cordis-plugin-include": "1.0.6",
     "@deepseek-ai/cordis-plugin-loader": "1.0.2",
