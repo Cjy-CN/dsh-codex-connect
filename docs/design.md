@@ -10,7 +10,7 @@ English | [中文](design.zh.md)
 
 ## Authentication
 
-The plugin delegates OAuth endpoints, PKCE/device-code behavior, account-id extraction, token refresh, and Codex request authentication to the pinned pi-ai Codex provider. Users can start the same login lifecycle from the plugin's Settings section or its `dsh-openai-codex` executable. Web auth routes accept only loopback, same-origin requests, return `no-store` JSON, and never expose tokens.
+The plugin delegates OAuth endpoints, PKCE/device-code behavior, account-id extraction, token refresh, and Codex request authentication to the pinned pi-ai Codex provider. Users can start the same login lifecycle from the plugin's Settings section or its `dsh-openai-codex` executable. Web auth routes accept only loopback, same-origin requests, return `no-store` JSON, and never expose tokens. The account page reads the fixed ChatGPT Codex usage endpoint without issuing a model request, converts server-reported usage into remaining-percentage bars, and includes exact credit or workspace-limit amounts only when those fields are present.
 
 Credentials are stored as a versioned JSON document at `$DSH_HOME/.openai-codex-auth.json`. Writes are atomic and a cross-process lock covers login, refresh, and logout. This store is intentionally separate from `~/.codex/auth.json`; sharing a rotating refresh token between independently writing clients would make either client able to invalidate the other.
 

@@ -24,7 +24,7 @@ dsh plugin --profile web add link:/absolute/path/to/dsh-codex
 dsh web
 ```
 
-Open **Settings → OpenAI Codex → Sign in with ChatGPT**. The plugin opens OpenAI's authorization page and completes the localhost callback. The account page shows only non-secret status and expiry information.
+Open **Settings → OpenAI Codex → Sign in with ChatGPT**. The plugin opens OpenAI's authorization page and completes the localhost callback. The account page shows live Codex quota bars and exact remaining percentages; exact credit balances or workspace limits appear only when the account API supplies them.
 
 The CLI remains available for terminal and headless installations:
 

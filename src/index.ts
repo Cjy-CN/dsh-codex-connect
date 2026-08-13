@@ -23,6 +23,14 @@ import {
 } from './search-event.ts'
 
 export { VIEW_IMAGE_TOOL_NAME } from './view-image.ts'
+export { OPENAI_CODEX_USAGE_URL, parseOpenAICodexUsage, readOpenAICodexRateLimits } from './usage.ts'
+export type {
+  OpenAICodexCredits,
+  OpenAICodexIndividualLimit,
+  OpenAICodexRateLimit,
+  OpenAICodexRateLimitWindow,
+  OpenAICodexUsage,
+} from './usage.ts'
 export {
   installOpenAICodexSearchEvent,
   OPENAI_CODEX_SEARCH_MODEL_REQUEST_EVENT,

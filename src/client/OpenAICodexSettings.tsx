@@ -2,18 +2,20 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
+import type { OpenAICodexUsage } from '../usage.ts'
 import type { OpenAICodexSettingsKey } from './locales.ts'
 
 const STATUS_PATH = '/plugins/dsh-openai-codex/auth/status'
 const LOGIN_PATH = '/plugins/dsh-openai-codex/auth/login'
 const LOGOUT_PATH = '/plugins/dsh-openai-codex/auth/logout'
 const POLL_INTERVAL_MS = 1_000
+const USAGE_POLL_INTERVAL_MS = 60_000
 
 type AccountStatus =
   | { status: 'loading' }
   | { status: 'signed-out' }
   | { status: 'signing-in' }
-  | { status: 'signed-in'; expiresAt?: string }
+  | { status: 'signed-in'; usage: OpenAICodexUsage; quotaError?: string }
   | { status: 'error'; message: string }
 
 interface LoginChallenge {
@@ -38,6 +40,112 @@ const statusStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap:
 const buttonStyle: CSSProperties = { boxSizing: 'border-box', minHeight: 34, padding: '6px 14px', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 18, background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', font: 'inherit', fontSize: 14, cursor: 'pointer' }
 const primaryButtonStyle: CSSProperties = { ...buttonStyle, borderColor: 'var(--dsw-alias-brand-primary)', background: 'var(--dsw-alias-brand-primary)', color: 'white' }
 const errorStyle: CSSProperties = { ...bodyStyle, color: 'var(--dsw-alias-state-error-primary)' }
+const quotaListStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 18, paddingTop: 2 }
+const quotaGroupStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10 }
+const quotaTitleStyle: CSSProperties = { margin: 0, fontSize: 14, lineHeight: '20px', fontWeight: 600, color: 'var(--dsw-alias-label-primary)' }
+const quotaLabelStyle: CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-secondary)' }
+const progressTrackStyle: CSSProperties = { height: 8, overflow: 'hidden', borderRadius: 999, background: 'var(--dsw-alias-bg-layer-2, rgba(0, 0, 0, 0.08))' }
+
+function progressFillStyle(percent: number): CSSProperties {
+  return {
+    width: `${Math.max(0, Math.min(100, percent))}%`,
+    height: '100%',
+    borderRadius: 'inherit',
+    background: 'var(--dsw-alias-brand-primary, #1677ff)',
+  }
+}
+
+function windowLabel(seconds: number, t: OpenAICodexSettingsInjected['t']): string {
+  if (seconds === 5 * 60 * 60) return t('fiveHourLimit')
+  if (seconds === 7 * 24 * 60 * 60) return t('weeklyLimit')
+  const hours = seconds / (60 * 60)
+  return Number.isInteger(hours) ? t('hourLimit', { count: hours }) : t('usageWindow')
+}
+
+function formatPercent(percent: number): string {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(percent)
+}
+
+function QuotaBar({
+  label,
+  percent,
+  detail,
+  t,
+}: {
+  label: string
+  percent: number
+  detail?: string
+  t: OpenAICodexSettingsInjected['t']
+}) {
+  const display = formatPercent(percent)
+  return (
+    <div style={quotaGroupStyle}>
+      <div style={quotaLabelStyle}>
+        <span>{label}</span>
+        <span>{t('percentRemaining', { percent: display })}</span>
+      </div>
+      <div
+        style={progressTrackStyle}
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        aria-valuetext={t('percentRemaining', { percent: display })}
+      >
+        <div style={progressFillStyle(percent)} />
+      </div>
+      {detail === undefined ? null : <p style={bodyStyle}>{detail}</p>}
+    </div>
+  )
+}
+
+function UsageLimits({ usage, quotaError, t }: {
+  usage: OpenAICodexUsage
+  quotaError?: string
+  t: OpenAICodexSettingsInjected['t']
+}) {
+  const hasData = usage.rateLimits.length > 0 || usage.credits !== undefined || usage.individualLimit !== undefined
+  return (
+    <div style={quotaListStyle}>
+      <h3 style={quotaTitleStyle}>{t('usageLimits')}</h3>
+      {usage.rateLimits.map(limit => (
+        <div key={limit.id} style={quotaGroupStyle}>
+          <h4 style={quotaTitleStyle}>{limit.name ?? limit.id}</h4>
+          {limit.windows.map(window => (
+            <QuotaBar
+              key={window.windowSeconds}
+              label={windowLabel(window.windowSeconds, t)}
+              percent={window.remainingPercent}
+              t={t}
+            />
+          ))}
+        </div>
+      ))}
+      {usage.individualLimit === undefined ? null : (
+        <QuotaBar
+          label={t('monthlyLimit')}
+          percent={usage.individualLimit.remainingPercent}
+          detail={t('exactRemaining', {
+            remaining: usage.individualLimit.remaining,
+            limit: usage.individualLimit.limit,
+          })}
+          t={t}
+        />
+      )}
+      {usage.credits === undefined ? null : (
+        <div style={quotaLabelStyle}>
+          <span>{t('credits')}</span>
+          <span>{usage.credits.unlimited
+            ? t('unlimited')
+            : usage.credits.balance === undefined ? t('available') : usage.credits.balance}</span>
+        </div>
+      )}
+      {!hasData && quotaError === undefined ? <p style={bodyStyle}>{t('quotaUnavailable')}</p> : null}
+      {quotaError === undefined ? null : <p style={errorStyle}>{t('quotaUnavailable')}</p>}
+    </div>
+  )
+}
 
 function dotStyle(status: AccountStatus['status']): CSSProperties {
   const color = status === 'signed-in'
@@ -82,8 +190,11 @@ export function OpenAICodexSettings({ t }: OpenAICodexSettingsProps) {
 
   useEffect(() => { void refresh() }, [refresh])
   useEffect(() => {
-    if (status.status !== 'signing-in') return
-    const timer = window.setInterval(() => { void refresh() }, POLL_INTERVAL_MS)
+    const interval = status.status === 'signing-in'
+      ? POLL_INTERVAL_MS
+      : status.status === 'signed-in' ? USAGE_POLL_INTERVAL_MS : undefined
+    if (interval === undefined) return
+    const timer = window.setInterval(() => { void refresh() }, interval)
     return () => { window.clearInterval(timer) }
   }, [refresh, status.status])
 
@@ -121,7 +232,9 @@ export function OpenAICodexSettings({ t }: OpenAICodexSettingsProps) {
 
   const label = status.status === 'signed-in'
     ? t('signedIn')
-    : status.status === 'signing-in' || status.status === 'loading'
+    : status.status === 'loading'
+      ? t('loadingAccount')
+      : status.status === 'signing-in'
       ? t('signingIn')
       : status.status === 'error'
         ? t('requestFailed')
@@ -139,19 +252,20 @@ export function OpenAICodexSettings({ t }: OpenAICodexSettingsProps) {
             <span aria-hidden="true" style={dotStyle(status.status)} />
             <span>{label}</span>
           </div>
-          {status.status === 'signed-in'
+          {status.status === 'loading'
+            ? null
+            : status.status === 'signed-in'
             ? <button type="button" style={buttonStyle} disabled={busy} onClick={() => { void signOut() }}>{busy ? t('working') : t('logout')}</button>
-            : <button type="button" style={primaryButtonStyle} disabled={busy || status.status === 'loading'} onClick={() => { void signIn() }}>{busy ? t('working') : status.status === 'error' ? t('loginAgain') : t('login')}</button>}
+            : <button type="button" style={primaryButtonStyle} disabled={busy} onClick={() => { void signIn() }}>{busy ? t('working') : status.status === 'error' ? t('loginAgain') : t('login')}</button>}
         </div>
-        {status.status === 'signed-in' && status.expiresAt !== undefined
-          ? <p style={bodyStyle}>{t('expires', { date: new Date(status.expiresAt).toLocaleString() })}</p>
-          : null}
         {status.status === 'error' ? <p style={errorStyle}>{status.message}</p> : null}
-        <p style={bodyStyle}>{t('localOnly')}</p>
-      </div>
-      <div style={cardStyle}>
-        <p style={bodyStyle}>{t('features')}</p>
-        <p style={bodyStyle}>{t('storage')}</p>
+        {status.status === 'signed-in'
+          ? <UsageLimits
+              usage={status.usage}
+              {...status.quotaError === undefined ? {} : { quotaError: status.quotaError }}
+              t={t}
+            />
+          : null}
       </div>
     </section>
   )

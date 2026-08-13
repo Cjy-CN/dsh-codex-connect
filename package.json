@@ -1,7 +1,7 @@
 {
   "name": "@dsh-external/dsh-openai-codex",
   "description": "ChatGPT OAuth, Codex models, standalone search, and image input for DeepSeek Harness",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "publishConfig": {
     "access": "public"

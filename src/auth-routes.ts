@@ -6,6 +6,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { loginOpenAICodex, logoutOpenAICodex, openAICodexAuthStatus } from './auth.ts'
 import type { OpenAICodexCredentialStore } from './store.ts'
+import { readOpenAICodexRateLimits } from './usage.ts'
+import type { OpenAICodexUsage } from './usage.ts'
 
 /** Plugin-owned status endpoint consumed by its browser half. */
 export const OPENAI_CODEX_AUTH_STATUS_PATH = '/plugins/dsh-openai-codex/auth/status'
@@ -17,7 +19,7 @@ export const OPENAI_CODEX_AUTH_LOGOUT_PATH = '/plugins/dsh-openai-codex/auth/log
 export type OpenAICodexWebAuthStatus =
   | { status: 'signed-out' }
   | { status: 'signing-in' }
-  | { status: 'signed-in'; expiresAt?: string }
+  | { status: 'signed-in'; usage: OpenAICodexUsage; quotaError?: string }
   | { status: 'error'; message: string }
 
 interface LoginChallenge {
@@ -56,13 +58,7 @@ export class OpenAICodexWebAuth {
   async status(): Promise<OpenAICodexWebAuthStatus> {
     if (this.operation !== undefined) return this.state
     if (this.state.status === 'error') return this.state
-    const stored = await openAICodexAuthStatus(this.store)
-    return stored.authenticated
-      ? {
-          status: 'signed-in',
-          ...stored.expiresAt === undefined ? {} : { expiresAt: stored.expiresAt.toISOString() },
-        }
-      : { status: 'signed-out' }
+    return this.readStoredStatus()
   }
 
   /** Start or join the current browser-login operation. */
@@ -101,11 +97,7 @@ export class OpenAICodexWebAuth {
       notify: event => { this.onEvent(event) },
     }, this.store).then(
       async () => {
-        const stored = await openAICodexAuthStatus(this.store)
-        this.state = {
-          status: 'signed-in',
-          ...stored.expiresAt === undefined ? {} : { expiresAt: stored.expiresAt.toISOString() },
-        }
+        this.state = await this.readStoredStatus()
       },
       (error: unknown) => {
         this.rejectChallenge(error)
@@ -129,6 +121,16 @@ export class OpenAICodexWebAuth {
     const challenge = { url: event.url }
     this.challenge = challenge
     for (const waiter of this.challengeWaiters.splice(0)) waiter.resolve(challenge)
+  }
+
+  private async readStoredStatus(): Promise<OpenAICodexWebAuthStatus> {
+    const stored = await openAICodexAuthStatus(this.store)
+    if (!stored.authenticated) return { status: 'signed-out' }
+    try {
+      return { status: 'signed-in', usage: await readOpenAICodexRateLimits(this.store) }
+    } catch (error: unknown) {
+      return { status: 'signed-in', usage: { rateLimits: [] }, quotaError: safeMessage(error) }
+    }
   }
 
   private rejectChallenge(error: unknown): void {

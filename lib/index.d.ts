@@ -38,6 +38,66 @@ declare class OpenAICodexCredentialStore implements CredentialStore {
   delete(providerId: string): Promise<void>;
 }
 //#endregion
+//#region src/usage.d.ts
+/** Fixed endpoint used by the official Codex client for ChatGPT rate limits. */
+declare const OPENAI_CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
+/** One quota window expressed as remaining capacity for direct UI rendering. */
+interface OpenAICodexRateLimitWindow {
+  /** Percent still available in this window. */
+  readonly remainingPercent: number;
+  /** Server-declared rolling-window length in seconds. */
+  readonly windowSeconds: number;
+}
+/** One separately metered Codex quota bucket. */
+interface OpenAICodexRateLimit {
+  /** Stable server feature id. */
+  readonly id: string;
+  /** Optional server-provided display name. */
+  readonly name?: string;
+  /** Available rolling windows for this bucket. */
+  readonly windows: readonly OpenAICodexRateLimitWindow[];
+}
+/** Optional exact prepaid-credit balance returned by ChatGPT. */
+interface OpenAICodexCredits {
+  /** Whether the balance is unmetered. */
+  readonly unlimited: boolean;
+  /** Exact provider-formatted balance when finite and disclosed. */
+  readonly balance?: string;
+}
+/** Optional exact workspace member spend limit returned by ChatGPT. */
+interface OpenAICodexIndividualLimit {
+  /** Exact configured limit. */
+  readonly limit: string;
+  /** Exact amount consumed. */
+  readonly used: string;
+  /** Exact amount still available. */
+  readonly remaining: string;
+  /** Percent still available for progress rendering. */
+  readonly remainingPercent: number;
+}
+/** Secret-free quota projection returned to the browser. */
+interface OpenAICodexUsage {
+  /** Rolling Codex rate-limit buckets. */
+  readonly rateLimits: readonly OpenAICodexRateLimit[];
+  /** Exact prepaid-credit balance when supported for this account. */
+  readonly credits?: OpenAICodexCredits;
+  /** Exact workspace member limit when supported for this account. */
+  readonly individualLimit?: OpenAICodexIndividualLimit;
+}
+/**
+ * Convert the provider response into the small secret-free object sent to the browser.
+ * @param value - opaque JSON returned by the ChatGPT usage endpoint.
+ * @returns core and additionally metered quota buckets with remaining percentages.
+ */
+declare function parseOpenAICodexUsage(value: unknown): OpenAICodexUsage;
+/**
+ * Read current quota without issuing a model request. OAuth is refreshed through
+ * the same provider-native credential lifecycle used by normal Codex turns.
+ * @param store - plugin-owned OAuth credential store.
+ * @returns current rate-limit buckets safe to expose to the local browser page.
+ */
+declare function readOpenAICodexRateLimits(store: OpenAICodexCredentialStore): Promise<OpenAICodexUsage>;
+//#endregion
 //#region src/search.d.ts
 /** Stable dsh web-provider id selected by the bundle patch. */
 declare const OPENAI_CODEX_SEARCH_PROVIDER = "openai-codex";
@@ -203,4 +263,4 @@ declare const Config: z<Config>;
  */
 declare function apply(ctx: Context, config: Config): void;
 //#endregion
-export { Config, DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE, DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_CODEX_SEARCH_MODE, DEFAULT_OPENAI_CODEX_SEARCH_MODEL, OPENAI_CODEX_AUTH_FILENAME, OPENAI_CODEX_BASE_URL, OPENAI_CODEX_PROVIDER, OPENAI_CODEX_SEARCH_MODEL_REQUEST_EVENT, OPENAI_CODEX_SEARCH_PROVIDER, OPENAI_CODEX_SEARCH_URL, type OpenAICodexAuthStatus, OpenAICodexCredentialStore, type OpenAICodexSearchContextSize, type OpenAICodexSearchMode, OpenAICodexSearchProvider, type OpenAICodexSearchProviderOptions, type OpenAICodexSearchRequestRecord, VIEW_IMAGE_TOOL_NAME, apply, inject, installOpenAICodexSearchEvent, loginOpenAICodex, logoutOpenAICodex, mapOpenAICodexSearchResponse, name, openAICodexAuthPath, openAICodexAuthStatus, recordOpenAICodexSearchRequest };
+export { Config, DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE, DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_CODEX_SEARCH_MODE, DEFAULT_OPENAI_CODEX_SEARCH_MODEL, OPENAI_CODEX_AUTH_FILENAME, OPENAI_CODEX_BASE_URL, OPENAI_CODEX_PROVIDER, OPENAI_CODEX_SEARCH_MODEL_REQUEST_EVENT, OPENAI_CODEX_SEARCH_PROVIDER, OPENAI_CODEX_SEARCH_URL, OPENAI_CODEX_USAGE_URL, type OpenAICodexAuthStatus, OpenAICodexCredentialStore, type OpenAICodexCredits, type OpenAICodexIndividualLimit, type OpenAICodexRateLimit, type OpenAICodexRateLimitWindow, type OpenAICodexSearchContextSize, type OpenAICodexSearchMode, OpenAICodexSearchProvider, type OpenAICodexSearchProviderOptions, type OpenAICodexSearchRequestRecord, type OpenAICodexUsage, VIEW_IMAGE_TOOL_NAME, apply, inject, installOpenAICodexSearchEvent, loginOpenAICodex, logoutOpenAICodex, mapOpenAICodexSearchResponse, name, openAICodexAuthPath, openAICodexAuthStatus, parseOpenAICodexUsage, readOpenAICodexRateLimits, recordOpenAICodexSearchRequest };

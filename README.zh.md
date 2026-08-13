@@ -24,7 +24,7 @@ dsh plugin --profile web add link:/absolute/path/to/dsh-codex
 dsh web
 ```
 
-打开 **设置 → OpenAI Codex → 使用 ChatGPT 登录**。插件会打开 OpenAI 授权页面，并通过 localhost 回调完成登录。账号页面只显示不敏感的状态和到期时间。
+打开 **设置 → OpenAI Codex → 使用 ChatGPT 登录**。插件会打开 OpenAI 授权页面，并通过 localhost 回调完成登录。账号页面会显示实时 Codex 额度进度条与精确剩余百分比；只有账号接口提供信用余额或工作区限额时，才会一并显示精确数值。
 
 终端和无界面环境仍可使用 CLI：
 
