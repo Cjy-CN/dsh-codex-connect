@@ -4,6 +4,9 @@ English | [中文](README.zh.md)
 
 Use your ChatGPT subscription in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) through OpenAI's Codex sign-in flow—no OpenAI Platform API key required.
 
+> [!IMPORTANT]
+> This plugin requires the modified [`Yan-Zero/deepseek-harness`](https://github.com/Yan-Zero/deepseek-harness) fork at commit `b1d42fc99f` (`feat: support externally authenticated providers`) or a descendant. It does not load on the unmodified upstream/public dsh release. The fork adds the provider-native OAuth adapter entry point and the durable auxiliary-search request event used by this bundle.
+
 This plugin adds a complete `openai-codex` route to dsh:
 
 - ChatGPT OAuth login with automatic token refresh
@@ -42,7 +45,7 @@ dsh plugin --profile web exec dsh-openai-codex logout
 
 The bundle selects `openai-codex` / `gpt-5.6-sol` for new agents and selects the Codex search provider. A model already saved in dsh settings still takes precedence, and the model picker can select any other Codex model available to the signed-in account.
 
-The plugin currently requires a dsh build that exports `createPiAiCatalogAuthAdapter()` from `@deepseek-ai/dsh-llm-pi-ai` and `snapshotWebSearchModelRequest()` from `@deepseek-ai/dsh-web`.
+The required fork commit exports `createPiAiCatalogAuthAdapter()` from `@deepseek-ai/dsh-llm-pi-ai` and `snapshotWebSearchModelRequest()` from `@deepseek-ai/dsh-web`. See [INSTALL.md](INSTALL.md) for the exact compatibility check.
 
 ## Search
 

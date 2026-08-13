@@ -4,6 +4,8 @@ Status: implemented
 
 English | [中文](design.zh.md)
 
+Compatibility: requires the modified `Yan-Zero/deepseek-harness` fork at commit `b1d42fc99f` or a descendant; the unmodified upstream/public release does not expose the extension points this bundle consumes.
+
 ## Problem
 
 The generic `llm-pi-ai` plugin can already preserve pi-ai's installed `openai-codex` protocol and model catalog, but its settings surface intentionally owns API-key references and constructs no OAuth credential store. Manually declaring the route therefore cannot refresh a ChatGPT credential, while treating an OAuth access token as `apiKeyEnv` expires without recovery. OpenCode's third-party Codex plugin demonstrates that ChatGPT subscription access requires a provider-native OAuth flow plus the ChatGPT Codex Responses backend, not use of the OAuth token as a general `api.openai.com/v1` key. The integration also has model-runtime obligations beyond login: stateless history, encrypted reasoning replay, tool-pair preservation, usage and overflow classification, compaction through the ordinary LLM seam, and citeable search whose model-visible inputs and outputs remain reconstructable.

@@ -10,9 +10,9 @@ Install this checkout as a local dsh bundle, enable the `openai-codex` model rou
 
 - **Plugin directory:** the absolute path to this repository. If it is not already checked out, clone `git@github.com:Yan-Zero/dsh-codex.git` into a user-approved source directory.
 - **Profile:** use the profile named by the user. If none is named, use `web`.
-- **dsh launcher:** prefer an installed `dsh` executable. If unavailable and a DeepSeek Harness source checkout is present, set that checkout as the command's working directory and run `pnpm dsh` in place of `dsh` in every command below. Do not use `pnpm --dir`; Corepack can otherwise select the caller's pnpm version before entering the Harness project.
+- **dsh launcher:** use a build from the modified `Yan-Zero/deepseek-harness` fork containing commit `b1d42fc99f` or a descendant. Prefer an installed executable built from that fork. If unavailable, set the compatible source checkout as the command's working directory and run `pnpm dsh` in place of `dsh` in every command below. Do not use `pnpm --dir`; Corepack can otherwise select the caller's pnpm version before entering the Harness project.
 
-The compatible Harness build must export `createPiAiCatalogAuthAdapter()` from `@deepseek-ai/dsh-llm-pi-ai` and `snapshotWebSearchModelRequest()` from `@deepseek-ai/dsh-web`. If either export is unavailable, stop and report that the Harness checkout must include the dsh Codex extension-point changes. Do not rewrite this plugin to bypass them.
+The unmodified upstream/public dsh release is incompatible. The required fork commit exports `createPiAiCatalogAuthAdapter()` from `@deepseek-ai/dsh-llm-pi-ai` and `snapshotWebSearchModelRequest()` from `@deepseek-ai/dsh-web`. If the commit or either export is unavailable, stop and report the compatibility failure. Do not rewrite this plugin to bypass it.
 
 ## Safety rules
 
@@ -33,6 +33,14 @@ Confirm all of the following before changing the profile:
 2. `package.json` names `@dsh-external/dsh-openai-codex`.
 3. The dsh launcher can execute `--help` or `--version` without an installation error.
 4. The absolute plugin path is normalized for a pnpm link specification. On Windows, use forward slashes, for example `E:/source/ai/dsh/dsh-codex`.
+
+When using a Harness source checkout, verify the required fork commit before installation:
+
+```sh
+git merge-base --is-ancestor b1d42fc99f HEAD
+```
+
+Exit code `0` is required. Any other result means this checkout cannot load the plugin. Do not continue with upstream `deepseek-ai/deepseek-harness` or an older fork commit.
 
 The committed `lib/` directory is the runtime artifact. Do not run `pnpm install` or rebuild the plugin merely to install it.
 
@@ -120,7 +128,7 @@ Report the installed profile, plugin path, selected search mode, and signed-in s
 ## Failure handling
 
 - **`dsh-openai-codex` executable not found:** confirm the profile dependency resolves to this checkout and `lib/bin.js` exists, then repeat the `add link:<absolute-path>` command.
-- **Missing Harness exports:** update or switch to a compatible DeepSeek Harness checkout. Do not add relative Harness paths to this plugin.
+- **Missing fork commit or Harness exports:** update or switch to `Yan-Zero/deepseek-harness` at `b1d42fc99f` or a descendant. Do not add relative Harness paths to this plugin.
 - **Duplicate provider error:** remove a manually configured `llm-pi-ai.providers.openai-codex` route from the profile; the dedicated bundle owns that route.
 - **401 or 403 after a prior login:** run the dedicated login command again. Do not copy Codex CLI credentials.
 - **OAuth callback cannot bind:** use `--device-code`.

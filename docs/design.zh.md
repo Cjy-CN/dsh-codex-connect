@@ -4,6 +4,8 @@ Status: implemented
 
 [English](design.md) | 中文
 
+兼容性：必须使用包含 commit `b1d42fc99f` 或其后续提交的修改版 `Yan-Zero/deepseek-harness` fork；未经修改的 upstream／公开版没有本 bundle 所需的扩展点。
+
 ## 问题
 
 通用 `llm-pi-ai` 插件已经可以保留 pi-ai 随附的 `openai-codex` 协议与模型 catalog，但其 settings 表层有意只负责 API 密钥引用，并且不会构造 OAuth 凭据存储。因此，手工声明该路由无法刷新 ChatGPT 凭据；把 OAuth access token 当作 `apiKeyEnv` 则会在到期后失效且无法恢复。OpenCode 的第三方 Codex 插件表明，ChatGPT 订阅访问需要提供方原生 OAuth 流程与 ChatGPT Codex Responses 后端，不能把 OAuth token 当成通用 `api.openai.com/v1` 密钥。该集成在登录之外还必须满足模型运行时要求：无状态历史、加密推理回放、工具配对保留、用量与溢出分类、经普通 LLM seam 运行的压缩，以及模型可见输入与输出均可重建的可引用搜索。
