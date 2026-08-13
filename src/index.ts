@@ -1,0 +1,105 @@
+/**
+ * Optional OpenAI Codex subscription bundle: registers the ChatGPT-backed
+ * Codex Responses route while keeping OAuth setup as an explicit CLI action.
+ * @module @dsh-external/dsh-openai-codex
+ */
+
+import type { Context } from '@deepseek-ai/cordis'
+import { randomUUID } from 'node:crypto'
+import z from '@deepseek-ai/schemastery'
+import type {} from '@deepseek-ai/dsh-attachment'
+import type {} from '@deepseek-ai/dsh-agent'
+import { createPiAiCatalogAuthAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
+import type {} from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-web'
+import { snapshotWebSearchModelRequest } from '@deepseek-ai/dsh-web'
+import {
+  DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE,
+  DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
+  DEFAULT_OPENAI_CODEX_SEARCH_MODE,
+  DEFAULT_OPENAI_CODEX_SEARCH_MODEL,
+  OpenAICodexSearchProvider,
+} from './search.ts'
+import type { OpenAICodexSearchContextSize, OpenAICodexSearchMode } from './search.ts'
+import { OpenAICodexCredentialStore, OPENAI_CODEX_PROVIDER } from './store.ts'
+
+export { loginOpenAICodex, logoutOpenAICodex, openAICodexAuthStatus } from './auth.ts'
+export type { OpenAICodexAuthStatus } from './auth.ts'
+export {
+  OpenAICodexCredentialStore,
+  OPENAI_CODEX_AUTH_FILENAME,
+  OPENAI_CODEX_PROVIDER,
+  openAICodexAuthPath,
+} from './store.ts'
+export {
+  DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE,
+  DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
+  DEFAULT_OPENAI_CODEX_SEARCH_MODE,
+  DEFAULT_OPENAI_CODEX_SEARCH_MODEL,
+  mapOpenAICodexSearchResponse,
+  OpenAICodexSearchProvider,
+  OPENAI_CODEX_BASE_URL,
+  OPENAI_CODEX_SEARCH_PROVIDER,
+  OPENAI_CODEX_SEARCH_URL,
+} from './search.ts'
+export type {
+  OpenAICodexSearchContextSize,
+  OpenAICodexSearchMode,
+  OpenAICodexSearchProviderOptions,
+  OpenAICodexSearchRequestRecord,
+} from './search.ts'
+
+/** Stable Cordis plugin name. */
+export const name = 'llm-openai-codex'
+
+/** LLM and web registries required before the composite provider can register. */
+export const inject = ['llm', 'web']
+
+/** Composite model and standalone-search configuration. */
+export interface Config {
+  /** Model used for auxiliary standalone searches. */
+  searchModel?: string
+  /** Cached, indexed, or live web access. */
+  searchMode?: OpenAICodexSearchMode
+  /** Amount of search context returned by the provider. */
+  searchContextSize?: OpenAICodexSearchContextSize
+  /** Maximum generated tokens returned by the standalone search endpoint. */
+  searchMaxOutputTokens?: number
+}
+
+export const Config: z<Config> = z.object({
+  searchModel: z.string().default(DEFAULT_OPENAI_CODEX_SEARCH_MODEL),
+  searchMode: z.union(['cached', 'indexed', 'live'] as const).default(DEFAULT_OPENAI_CODEX_SEARCH_MODE),
+  searchContextSize: z.union(['low', 'medium', 'high'] as const).default(DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE),
+  searchMaxOutputTokens: z.number().step(1).min(1).default(DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS),
+})
+
+/**
+ * Register the `openai-codex` LLM route and standalone web-search provider
+ * with one provider-native OAuth credential store.
+ * @param ctx - plugin context carrying the LLM and web registries plus optional agent and attachment services.
+ * @param config - standalone-search model, access mode, context size, and output budget.
+ */
+export function apply(ctx: Context, config: Config): void {
+  const credentials = new OpenAICodexCredentialStore()
+  ctx.llm.registerAdapter([OPENAI_CODEX_PROVIDER], createPiAiCatalogAuthAdapter({
+    provider: OPENAI_CODEX_PROVIDER,
+    displayName: 'OpenAI Codex',
+    credentials,
+    resolveAttachments: () => ctx.get('attachments'),
+  }))
+  ctx.web.registerSearchProvider(new OpenAICodexSearchProvider({
+    credentials,
+    model: config.searchModel ?? DEFAULT_OPENAI_CODEX_SEARCH_MODEL,
+    mode: config.searchMode ?? DEFAULT_OPENAI_CODEX_SEARCH_MODE,
+    contextSize: config.searchContextSize ?? DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE,
+    maxOutputTokens: config.searchMaxOutputTokens ?? DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
+    resolveRequestId: () => String(ctx.get('agents')?.currentInitiator()?.session.id ?? randomUUID()),
+    recordRequest: request => {
+      ctx.get('agents')?.currentInitiator()?.session.append(
+        'web/search-model-request',
+        snapshotWebSearchModelRequest(OPENAI_CODEX_PROVIDER, request),
+      )
+    },
+  }))
+}
