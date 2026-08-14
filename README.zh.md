@@ -17,7 +17,7 @@ dsh web
 
 在 DeepSeek Harness 源码 checkout 中运行时，在命令前加 `pnpm`。本地开发可安装 `link:/absolute/path/to/dsh-codex-connect`。
 
-可在 **设置 → 插件 → OpenAI Codex → 使用 ChatGPT 登录**，也可使用 CLI：
+可在 **设置 → 插件 → 插件配置 → OpenAI Codex → 使用 ChatGPT 登录**，也可使用 CLI：
 
 ```sh
 dsh plugin --profile web exec dsh-codex-connect login

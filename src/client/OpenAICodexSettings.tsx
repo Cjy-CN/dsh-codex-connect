@@ -1,4 +1,4 @@
-/** Plugin-owned OpenAI Codex account page inside the dsh Plugins section. */
+/** Plugin-owned OpenAI Codex account controls used inside Plugin configuration. */
 
 import { useCallback, useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -29,12 +29,17 @@ export interface OpenAICodexSettingsInjected {
 }
 
 /** Props delivered by the settings slot renderer. */
-export type OpenAICodexSettingsProps = Partial<OpenAICodexSettingsInjected>
+export type OpenAICodexSettingsProps = Partial<OpenAICodexSettingsInjected> & {
+  /** Omit the page heading and outer card chrome inside Plugin configuration. */
+  embedded?: boolean
+}
 
 const pageStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 720 }
 const titleStyle: CSSProperties = { margin: 0, fontSize: 20, lineHeight: '28px', fontWeight: 600, color: 'var(--dsw-alias-label-primary)' }
 const bodyStyle: CSSProperties = { margin: 0, fontSize: 14, lineHeight: '22px', color: 'var(--dsw-alias-label-secondary)' }
 const cardStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14, padding: '18px 20px', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 12, background: 'var(--dsw-alias-bg-module-platform)' }
+const embeddedPageStyle: CSSProperties = { ...pageStyle, gap: 0, maxWidth: 'none' }
+const embeddedCardStyle: CSSProperties = { ...cardStyle, padding: 0, border: 0, borderRadius: 0, background: 'transparent' }
 const rowStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }
 const statusStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, fontSize: 15, fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }
 const buttonStyle: CSSProperties = { boxSizing: 'border-box', minHeight: 34, padding: '6px 14px', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 18, background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', font: 'inherit', fontSize: 14, cursor: 'pointer' }
@@ -175,7 +180,7 @@ async function jsonRequest<T>(path: string, method = 'GET'): Promise<T> {
 }
 
 /** OpenAI Codex account status and OAuth actions. */
-export function OpenAICodexSettings({ t }: OpenAICodexSettingsProps) {
+export function OpenAICodexSettings({ t, embedded = false }: OpenAICodexSettingsProps) {
   if (t === undefined) throw new Error('OpenAI Codex settings requires its translation function')
   const [status, setStatus] = useState<AccountStatus>({ status: 'loading' })
   const [busy, setBusy] = useState(false)
@@ -241,12 +246,17 @@ export function OpenAICodexSettings({ t }: OpenAICodexSettingsProps) {
         : t('signedOut')
 
   return (
-    <section style={pageStyle} aria-labelledby="openai-codex-settings-title">
-      <div>
-        <h2 id="openai-codex-settings-title" style={titleStyle}>{t('title')}</h2>
-        <p style={{ ...bodyStyle, marginTop: 6 }}>{t('intro')}</p>
-      </div>
-      <div style={cardStyle}>
+    <section
+      style={embedded ? embeddedPageStyle : pageStyle}
+      {...embedded ? { 'aria-label': t('title') } : { 'aria-labelledby': 'openai-codex-settings-title' }}
+    >
+      {embedded ? null : (
+        <div>
+          <h2 id="openai-codex-settings-title" style={titleStyle}>{t('title')}</h2>
+          <p style={{ ...bodyStyle, marginTop: 6 }}>{t('intro')}</p>
+        </div>
+      )}
+      <div style={embedded ? embeddedCardStyle : cardStyle}>
         <div style={rowStyle}>
           <div style={statusStyle} role="status">
             <span aria-hidden="true" style={dotStyle(status.status)} />

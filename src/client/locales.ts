@@ -1,8 +1,9 @@
-/** English copy for the OpenAI Codex Plugins page. */
+/** English copy for the OpenAI Codex Plugin configuration card. */
 export const en = {
-  nav: 'OpenAI Codex',
   title: 'OpenAI Codex',
   intro: 'Use your ChatGPT subscription in dsh without an API key.',
+  expand: 'Expand settings',
+  collapse: 'Collapse settings',
   loadingAccount: 'Loading account…',
   signedOut: 'Not signed in',
   signingIn: 'Waiting for browser authorization…',
@@ -31,11 +32,12 @@ export const en = {
 /** Keys shared by both dictionaries. */
 export type OpenAICodexSettingsKey = keyof typeof en
 
-/** Chinese copy for the OpenAI Codex Plugins page. */
+/** Chinese copy for the OpenAI Codex Plugin configuration card. */
 export const zh: { [Key in OpenAICodexSettingsKey]: string } = {
-  nav: 'OpenAI Codex',
   title: 'OpenAI Codex',
   intro: '使用 ChatGPT 订阅在 dsh 中调用模型，无需 API Key。',
+  expand: '展开设置',
+  collapse: '折叠设置',
   loadingAccount: '正在加载账户信息…',
   signedOut: '尚未登录',
   signingIn: '正在等待浏览器授权…',
