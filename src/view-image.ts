@@ -9,6 +9,7 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolExecution } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
+import { fetchPublicHttpResource } from './public-http.ts'
 
 /** Stable Codex tool name. */
 export const VIEW_IMAGE_TOOL_NAME = 'view_image'
@@ -73,68 +74,6 @@ async function assertImageCapable(ctx: Context, exec: ToolExecution, source: str
   }
 }
 
-async function boundedResponseBytes(response: Response, maxBytes: number, signal: AbortSignal): Promise<Uint8Array> {
-  const declared = Number(response.headers.get('content-length'))
-  if (Number.isFinite(declared) && declared > maxBytes) throw new Error(`remote image exceeds ${maxBytes} bytes`)
-  if (response.body === null) return new Uint8Array()
-  const reader = response.body.getReader()
-  const chunks: Uint8Array[] = []
-  let total = 0
-  try {
-    while (true) {
-      if (signal.aborted) throw signal.reason
-      const result = await reader.read()
-      if (result.done) break
-      total += result.value.byteLength
-      if (total > maxBytes) throw new Error(`remote image exceeds ${maxBytes} bytes`)
-      chunks.push(result.value)
-    }
-  } finally {
-    await reader.cancel().catch(() => undefined)
-  }
-  const data = new Uint8Array(total)
-  let offset = 0
-  for (const chunk of chunks) {
-    data.set(chunk, offset)
-    offset += chunk.byteLength
-  }
-  return data
-}
-
-async function fetchImage(source: string, maxBytes: number, signal: AbortSignal): Promise<{
-  data: Uint8Array
-  display: string
-  name?: string
-}> {
-  let url = new URL(source)
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('view_image URL must use http or https')
-  if (url.username !== '' || url.password !== '') throw new Error('view_image URL must not contain credentials')
-  for (let redirects = 0; ; redirects++) {
-    const response = await fetch(url, {
-      method: 'GET',
-      redirect: 'manual',
-      headers: { accept: 'image/png, image/jpeg, image/webp, image/gif' },
-      signal,
-    })
-    if (response.status >= 300 && response.status < 400) {
-      if (redirects >= 5) throw new Error('remote image exceeded 5 redirects')
-      const location = response.headers.get('location')
-      if (location === null) throw new Error(`remote image redirect ${response.status} has no location`)
-      url = new URL(location, url)
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('remote image redirected outside http(s)')
-      if (url.username !== '' || url.password !== '') throw new Error('remote image redirect contains credentials')
-      continue
-    }
-    if (!response.ok) throw new Error(`remote image request failed with HTTP ${response.status}`)
-    const name = basename(url.pathname) || undefined
-    return {
-      data: await boundedResponseBytes(response, maxBytes, signal),
-      display: url.href,
-      ...name === undefined ? {} : { name },
-    }
-  }
-}
-
 /** Build the plugin-owned image viewing tool. */
 export function viewImageTool(ctx: Context): ToolDefinition {
   return defineTool({
@@ -179,7 +118,7 @@ export function viewImageTool(ctx: Context): ToolDefinition {
       const maxBytes = Math.min(attachments.imageLimits.maxImageBytes, attachments.imageLimits.maxMessageImageBytes)
       let loaded: { data: Uint8Array; display: string; name?: string }
       if (/^https?:\/\//iu.test(source)) {
-        loaded = await fetchImage(source, maxBytes, exec.signal)
+        loaded = await fetchPublicHttpResource(source, maxBytes, exec.signal)
       } else {
         const cwd = exec.agent?.session.header.cwd
         const target = await ctx.fs.resolve(source, { ...cwd === undefined ? {} : { cwd }, signal: exec.signal })
@@ -225,8 +164,10 @@ export function viewImageTool(ctx: Context): ToolDefinition {
     presentCall: args => ({
       card: 'generic',
       title: `View image ${args.source}`,
-      kind: 'read',
-      .../^https?:\/\//iu.test(args.source) ? {} : { locations: [{ path: args.source }] },
+      kind: /^https?:\/\//iu.test(args.source) ? 'fetch' : 'read',
+      .../^https?:\/\//iu.test(args.source)
+        ? { rawInput: args.source }
+        : { locations: [{ path: args.source }] },
     }),
   })
 }

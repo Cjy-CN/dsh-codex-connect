@@ -68,6 +68,7 @@ dsh plugin --profile web exec dsh-codex-connect doctor
 - OAuth 单独存储于 `$DSH_HOME/.openai-codex-auth.json`（默认 `~/.dsh`），不会复制或修改 `~/.codex/auth.json`。
 - 支持的平台上，父目录与文件使用仅所有者可访问权限；写入采用原子替换，刷新写入使用跨进程文件锁。
 - 状态和诊断只返回非敏感信息；OAuth 交互只会由显式 `login` 操作触发。
+- 浏览器 OAuth 路由只接受 loopback 客户端和 loopback Host/Origin；30 秒内没有得到有效的 HTTPS 授权地址时会安全失败，不会一直挂起。
 - 两个 adapter 不能同时占用 `openai-codex`。旧 `dsh-codex` bundle 或手动 provider 配置冲突时，启动会给出明确迁移提示。
 - 移除包不会删除 OAuth 状态；只有确实需要删除凭据时才运行 `logout`。
 
@@ -76,6 +77,7 @@ dsh plugin --profile web exec dsh-codex-connect doctor
 - Alpha 面向当前 Harness `0.1.0-rc.5` 主线组合与兼容的 `0.1.0-rc.6` 插件 API、Node.js `^22.19.0 || >=24.0.0` 和固定版本的 `@earendil-works/pi-ai` Codex provider。
 - ChatGPT 套餐资格、模型权限、额度和后端行为由 OpenAI 控制，可能变化。
 - shell、文件系统、skills、MCP、subagents、审批、权限、附件、会话持久化、压缩与恢复继续由当前 Harness profile 提供。
+- 远程 `view_image` 只允许公共 HTTP(S) 目标；每一次 DNS 结果与重定向都会重新检查，并将连接固定到已验证地址，从而阻止 localhost、私网、link-local 服务和云元数据地址。
 - 安装、构建、测试、doctor 和包内容验证均不需要真实 OAuth。
 
 详见 [INSTALL.md](INSTALL.md)、[MIGRATION.md](MIGRATION.md) 与 [docs/design.zh.md](docs/design.zh.md)。

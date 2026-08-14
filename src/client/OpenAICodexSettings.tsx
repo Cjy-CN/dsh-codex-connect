@@ -1,13 +1,15 @@
 /** Plugin-owned OpenAI Codex account controls used inside Plugin configuration. */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { OpenAICodexUsage } from '../usage.ts'
+import {
+  OPENAI_CODEX_AUTH_LOGIN_PATH,
+  OPENAI_CODEX_AUTH_LOGOUT_PATH,
+  OPENAI_CODEX_AUTH_STATUS_PATH,
+} from '../auth-paths.ts'
 import type { OpenAICodexSettingsKey } from './locales.ts'
 
-const STATUS_PATH = '/plugins/dsh-openai-codex/auth/status'
-const LOGIN_PATH = '/plugins/dsh-openai-codex/auth/login'
-const LOGOUT_PATH = '/plugins/dsh-openai-codex/auth/logout'
 const POLL_INTERVAL_MS = 1_000
 const USAGE_POLL_INTERVAL_MS = 60_000
 
@@ -163,11 +165,12 @@ function dotStyle(status: AccountStatus['status']): CSSProperties {
   return { width: 9, height: 9, borderRadius: '50%', flex: '0 0 auto', background: color }
 }
 
-async function jsonRequest<T>(path: string, method = 'GET'): Promise<T> {
+async function jsonRequest<T>(path: string, method = 'GET', signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, {
     method,
     headers: { accept: 'application/json' },
     credentials: 'same-origin',
+    ...signal === undefined ? {} : { signal },
   })
   const value: unknown = await response.json().catch(() => undefined)
   if (!response.ok) {
@@ -184,54 +187,79 @@ export function OpenAICodexSettings({ t, embedded = false }: OpenAICodexSettings
   if (t === undefined) throw new Error('OpenAI Codex settings requires its translation function')
   const [status, setStatus] = useState<AccountStatus>({ status: 'loading' })
   const [busy, setBusy] = useState(false)
+  const mounted = useRef(true)
 
-  const refresh = useCallback(async () => {
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
+
+  const refresh = useCallback(async (signal?: AbortSignal) => {
     try {
-      setStatus(await jsonRequest<AccountStatus>(STATUS_PATH))
+      const nextStatus = await jsonRequest<AccountStatus>(OPENAI_CODEX_AUTH_STATUS_PATH, 'GET', signal)
+      if (mounted.current && signal?.aborted !== true) setStatus(nextStatus)
     } catch (error: unknown) {
-      setStatus({ status: 'error', message: error instanceof Error ? error.message : t('requestFailed') })
+      if (mounted.current && signal?.aborted !== true) {
+        setStatus({ status: 'error', message: error instanceof Error ? error.message : t('requestFailed') })
+      }
     }
   }, [t])
 
-  useEffect(() => { void refresh() }, [refresh])
+  useEffect(() => {
+    const controller = new AbortController()
+    void refresh(controller.signal)
+    return () => { controller.abort() }
+  }, [refresh])
   useEffect(() => {
     const interval = status.status === 'signing-in'
       ? POLL_INTERVAL_MS
       : status.status === 'signed-in' ? USAGE_POLL_INTERVAL_MS : undefined
     if (interval === undefined) return
-    const timer = window.setInterval(() => { void refresh() }, interval)
-    return () => { window.clearInterval(timer) }
+    const controller = new AbortController()
+    const timer = window.setInterval(() => { void refresh(controller.signal) }, interval)
+    return () => {
+      window.clearInterval(timer)
+      controller.abort()
+    }
   }, [refresh, status.status])
 
   const signIn = async (): Promise<void> => {
     const popup = window.open('about:blank', '_blank')
-    if (popup !== null) popup.opener = null
+    if (popup === null) {
+      setStatus({ status: 'error', message: t('popupBlocked') })
+      return
+    }
+    popup.opener = null
     setBusy(true)
     setStatus({ status: 'signing-in' })
     try {
-      const challenge = await jsonRequest<LoginChallenge>(LOGIN_PATH, 'POST')
-      if (popup === null) {
-        setStatus({ status: 'error', message: t('popupBlocked') })
+      const challenge = await jsonRequest<LoginChallenge>(OPENAI_CODEX_AUTH_LOGIN_PATH, 'POST')
+      if (!mounted.current) {
+        popup.close()
         return
       }
       popup.location.replace(challenge.url)
     } catch (error: unknown) {
       popup?.close()
-      setStatus({ status: 'error', message: error instanceof Error ? error.message : t('requestFailed') })
+      if (mounted.current) {
+        setStatus({ status: 'error', message: error instanceof Error ? error.message : t('requestFailed') })
+      }
     } finally {
-      setBusy(false)
+      if (mounted.current) setBusy(false)
     }
   }
 
   const signOut = async (): Promise<void> => {
     setBusy(true)
     try {
-      await jsonRequest<{ ok: true }>(LOGOUT_PATH, 'POST')
-      setStatus({ status: 'signed-out' })
+      await jsonRequest<{ ok: true }>(OPENAI_CODEX_AUTH_LOGOUT_PATH, 'POST')
+      if (mounted.current) setStatus({ status: 'signed-out' })
     } catch (error: unknown) {
-      setStatus({ status: 'error', message: error instanceof Error ? error.message : t('requestFailed') })
+      if (mounted.current) {
+        setStatus({ status: 'error', message: error instanceof Error ? error.message : t('requestFailed') })
+      }
     } finally {
-      setBusy(false)
+      if (mounted.current) setBusy(false)
     }
   }
 

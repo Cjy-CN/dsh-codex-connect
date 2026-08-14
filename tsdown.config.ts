@@ -1,6 +1,10 @@
+import { readFileSync } from 'node:fs'
 import type { UserConfig } from 'tsdown'
 
 const PLUGIN_ID = 'dsh-codex-connect'
+const PACKAGE_VERSION = (JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+) as { version: string }).version
 const CLIENT_EXTERNALS = [
   'react',
   'react/jsx-runtime',
@@ -24,6 +28,9 @@ export default [
     fixedExtension: false,
     dts: true,
     clean: true,
+    define: {
+      __CODEX_CONNECT_VERSION__: JSON.stringify(PACKAGE_VERSION),
+    },
     deps: {
       neverBundle: [
         '@earendil-works/pi-ai',
@@ -52,6 +59,7 @@ export default [
     deps: { neverBundle: [...CLIENT_EXTERNALS] },
     define: {
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV ?? 'production'),
+      __CODEX_CONNECT_VERSION__: JSON.stringify(PACKAGE_VERSION),
     },
     outputOptions: {
       entryFileNames: 'client.js',

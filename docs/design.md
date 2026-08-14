@@ -10,13 +10,13 @@ The bundle patch inserts only `llm-openai-codex`. It never writes `agent-default
 
 The plugin uses `$DSH_HOME/.openai-codex-auth.json`, separate from Codex CLI/Desktop state. The file format is strict and versioned. POSIX reads reject group/world-accessible files. Parent directories and files are created with owner-only modes, writes are atomic, and refresh mutations use the Harness cross-process file lock. Callers receive cloned credentials.
 
-The settings routes and CLI reuse the existing OAuth path and route names for migration compatibility. Only an explicit login operation emits an authorization URL or code. Status responses are redacted. Doctor uses `lstat` metadata and never opens the document.
+The settings routes and CLI reuse the existing OAuth path and route names for migration compatibility. Only an explicit login operation emits an authorization URL or code. Browser requests must come from a loopback peer with a loopback Host and, when supplied, an exact loopback HTTP(S) Origin. A login challenge accepts only credential-free HTTPS URLs and fails closed after 30 seconds or when the provider finishes without a URL; logout and disposal cancel pending waiters. Status responses are redacted. Doctor uses `lstat` metadata and never opens the document.
 
 ## Search and images
 
 When `enableSearch: true`, the plugin registers its standalone search provider and secret-free request event. Harness still requires explicit `web.searchProvider: openai-codex` when multiple providers exist. Search responses are mapped to Harness text and citation records.
 
-When `enableImageTool: true`, `view_image` is registered only after tools, filesystem, and attachment services are available. It checks current-model image support, bounded local or HTTP(S) bytes, accepted media signatures, redirects, and embedded URL credentials before saving a Harness attachment.
+When `enableImageTool: true`, `view_image` is registered only after tools, filesystem, and attachment services are available. Local files remain bounded by the Harness filesystem surface. Remote images allow only credential-free public HTTP(S): all DNS answers must be public unicast, each redirect is revalidated, and each socket is pinned to the validated address to close DNS-rebinding gaps. The tool also checks bounded bytes, accepted media signatures, and current-model image support before saving a Harness attachment.
 
 ## Conflicts and diagnostics
 

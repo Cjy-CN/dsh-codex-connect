@@ -8,13 +8,20 @@ import { loginOpenAICodex, logoutOpenAICodex, openAICodexAuthStatus } from './au
 import type { OpenAICodexCredentialStore } from './store.ts'
 import { readOpenAICodexRateLimits } from './usage.ts'
 import type { OpenAICodexUsage } from './usage.ts'
+import {
+  OPENAI_CODEX_AUTH_LOGIN_PATH,
+  OPENAI_CODEX_AUTH_LOGOUT_PATH,
+  OPENAI_CODEX_AUTH_STATUS_PATH,
+} from './auth-paths.ts'
 
-/** Plugin-owned status endpoint consumed by its browser half. */
-export const OPENAI_CODEX_AUTH_STATUS_PATH = '/plugins/dsh-openai-codex/auth/status'
-/** Plugin-owned browser-login endpoint consumed by its browser half. */
-export const OPENAI_CODEX_AUTH_LOGIN_PATH = '/plugins/dsh-openai-codex/auth/login'
-/** Plugin-owned logout endpoint consumed by its browser half. */
-export const OPENAI_CODEX_AUTH_LOGOUT_PATH = '/plugins/dsh-openai-codex/auth/logout'
+export {
+  OPENAI_CODEX_AUTH_LOGIN_PATH,
+  OPENAI_CODEX_AUTH_LOGOUT_PATH,
+  OPENAI_CODEX_AUTH_STATUS_PATH,
+} from './auth-paths.ts'
+
+/** Maximum time a browser request waits for the provider's authorization URL. */
+export const OPENAI_CODEX_AUTH_URL_TIMEOUT_MS = 30_000
 
 export type OpenAICodexWebAuthStatus =
   | { status: 'signed-out' }
@@ -24,6 +31,11 @@ export type OpenAICodexWebAuthStatus =
 
 interface LoginChallenge {
   url: string
+}
+
+/** Testable timing boundary; production uses the exported 30-second ceiling. */
+export interface OpenAICodexWebAuthOptions {
+  challengeTimeoutMs?: number
 }
 
 /** Redact provider diagnostics before they cross to the browser. */
@@ -51,8 +63,18 @@ export class OpenAICodexWebAuth {
   private cancellation: AbortController | undefined
   private challenge: LoginChallenge | undefined
   private challengeWaiters: Array<{ resolve(value: LoginChallenge): void; reject(error: unknown): void }> = []
+  private challengeTimer: ReturnType<typeof setTimeout> | undefined
+  private readonly challengeTimeoutMs: number
 
-  constructor(private readonly store: OpenAICodexCredentialStore) {}
+  constructor(
+    private readonly store: OpenAICodexCredentialStore,
+    options: OpenAICodexWebAuthOptions = {},
+  ) {
+    this.challengeTimeoutMs = options.challengeTimeoutMs ?? OPENAI_CODEX_AUTH_URL_TIMEOUT_MS
+    if (!Number.isFinite(this.challengeTimeoutMs) || this.challengeTimeoutMs <= 0) {
+      throw new TypeError('OpenAI Codex auth URL timeout must be a positive finite number')
+    }
+  }
 
   /** Read current public state, consulting durable storage while idle. */
   async status(): Promise<OpenAICodexWebAuthStatus> {
@@ -72,15 +94,16 @@ export class OpenAICodexWebAuth {
 
   /** Cancel any callback listener, wait for quiescence, then delete the credential. */
   async signOut(): Promise<void> {
-    this.cancellation?.abort(new Error('OpenAI Codex sign-in cancelled'))
+    this.cancelSignIn(new Error('OpenAI Codex sign-in cancelled'))
     await this.operation?.catch(() => undefined)
     await logoutOpenAICodex(this.store)
+    this.challenge = undefined
     this.state = { status: 'signed-out' }
   }
 
   /** Stop the owned callback listener during plugin disposal. */
   async dispose(): Promise<void> {
-    this.cancellation?.abort(new Error('OpenAI Codex plugin disposed'))
+    this.cancelSignIn(new Error('OpenAI Codex plugin disposed'))
     await this.operation?.catch(() => undefined)
   }
 
@@ -89,6 +112,10 @@ export class OpenAICodexWebAuth {
     this.cancellation = cancellation
     this.challenge = undefined
     this.state = { status: 'signing-in' }
+    this.challengeTimer = setTimeout(() => {
+      this.cancelSignIn(new Error(`OpenAI Codex did not provide an authorization URL within ${String(this.challengeTimeoutMs)}ms`))
+    }, this.challengeTimeoutMs)
+    this.challengeTimer.unref()
     this.operation = loginOpenAICodex({
       signal: cancellation.signal,
       prompt: prompt => prompt.type === 'select'
@@ -97,6 +124,12 @@ export class OpenAICodexWebAuth {
       notify: event => { this.onEvent(event) },
     }, this.store).then(
       async () => {
+        if (this.challenge === undefined) {
+          const error = new Error('OpenAI Codex sign-in finished without an authorization URL')
+          this.rejectChallenge(error)
+          this.state = { status: 'error', message: safeMessage(error) }
+          return
+        }
         this.state = await this.readStoredStatus()
       },
       (error: unknown) => {
@@ -104,6 +137,7 @@ export class OpenAICodexWebAuth {
         this.state = { status: 'error', message: safeMessage(error) }
       },
     ).finally(() => {
+      this.clearChallengeTimer()
       this.operation = undefined
       this.cancellation = undefined
     })
@@ -111,15 +145,22 @@ export class OpenAICodexWebAuth {
 
   private onEvent(event: AuthEvent): void {
     if (event.type !== 'auth_url') return
-    const url = new URL(event.url)
-    if (url.protocol !== 'https:') {
+    let url: URL
+    try {
+      url = new URL(event.url)
+    } catch {
+      const error = new Error('OpenAI returned an invalid authorization URL')
+      this.cancelSignIn(error)
+      return
+    }
+    if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') {
       const error = new Error('OpenAI returned an unsafe authorization URL')
-      this.cancellation?.abort(error)
-      this.rejectChallenge(error)
+      this.cancelSignIn(error)
       return
     }
     const challenge = { url: event.url }
     this.challenge = challenge
+    this.clearChallengeTimer()
     for (const waiter of this.challengeWaiters.splice(0)) waiter.resolve(challenge)
   }
 
@@ -134,24 +175,62 @@ export class OpenAICodexWebAuth {
   }
 
   private rejectChallenge(error: unknown): void {
+    this.clearChallengeTimer()
     for (const waiter of this.challengeWaiters.splice(0)) waiter.reject(error)
+  }
+
+  private clearChallengeTimer(): void {
+    if (this.challengeTimer === undefined) return
+    clearTimeout(this.challengeTimer)
+    this.challengeTimer = undefined
+  }
+
+  private cancelSignIn(error: Error): void {
+    this.rejectChallenge(error)
+    this.cancellation?.abort(error)
   }
 }
 
-/** Whether a request comes from this loopback page rather than a remote site. */
-function trustedRequest(req: IncomingMessage): boolean {
+function loopbackHost(rawHost: string): boolean {
+  if (/[\\/@?#]/u.test(rawHost)) return false
+  try {
+    const parsed = new URL(`http://${rawHost}`)
+    if (parsed.username !== '' || parsed.password !== '' || parsed.pathname !== '/' || parsed.search !== '' || parsed.hash !== '') return false
+    const bracketless = parsed.hostname.startsWith('[') && parsed.hostname.endsWith(']')
+      ? parsed.hostname.slice(1, -1)
+      : parsed.hostname
+    const hostname = bracketless.toLowerCase().replace(/\.$/u, '')
+    return hostname === 'localhost'
+      || hostname.endsWith('.localhost')
+      || hostname === '127.0.0.1'
+      || hostname === '::1'
+      || hostname === '::ffff:127.0.0.1'
+  } catch {
+    return false
+  }
+}
+
+function exactOrigin(req: IncomingMessage, rawHost: string, rawOrigin: string): boolean {
+  try {
+    const origin = new URL(rawOrigin)
+    if (origin.username !== '' || origin.password !== '' || origin.pathname !== '/' || origin.search !== '' || origin.hash !== '') return false
+    const encrypted = (req.socket as IncomingMessage['socket'] & { encrypted?: boolean }).encrypted === true
+    return origin.origin === new URL(`${encrypted ? 'https' : 'http'}://${rawHost}`).origin
+  } catch {
+    return false
+  }
+}
+
+/** Whether a request comes from this loopback page rather than a remote/rebinding site. */
+export function trustedRequest(req: IncomingMessage): boolean {
   const remote = req.socket.remoteAddress
   if (remote !== '127.0.0.1' && remote !== '::1' && remote !== '::ffff:127.0.0.1') return false
   if (req.headers['sec-fetch-site'] === 'cross-site') return false
   const host = req.headers.host
-  if (host === undefined) return false
+  if (typeof host !== 'string' || !loopbackHost(host)) return false
   const origin = req.headers.origin
   if (origin === undefined) return true
-  try {
-    return new URL(origin).host === new URL(`http://${host}`).host
-  } catch {
-    return false
-  }
+  return typeof origin === 'string' && exactOrigin(req, host, origin)
 }
 
 function json(res: ServerResponse, status: number, value: unknown): void {
@@ -199,8 +278,12 @@ export function registerOpenAICodexAuthRoutes(
         handler: async (req, res) => {
           if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' })
           if (!trustedRequest(req)) return json(res, 403, { error: 'forbidden' })
-          await auth.signOut()
-          json(res, 200, { ok: true })
+          try {
+            await auth.signOut()
+            json(res, 200, { ok: true })
+          } catch (error: unknown) {
+            json(res, 500, { error: safeMessage(error) })
+          }
         },
       }),
     ]

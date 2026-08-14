@@ -2,8 +2,8 @@
 
 import { lstat } from 'node:fs/promises'
 import { openAICodexAuthPath, OPENAI_CODEX_PROVIDER } from './store.ts'
-
-export const CODEX_CONNECT_VERSION = '0.1.0-alpha.2.1'
+export { CODEX_CONNECT_VERSION } from './version.ts'
+import { CODEX_CONNECT_VERSION } from './version.ts'
 
 /** Inputs that are safe to obtain without booting OAuth. */
 export interface OpenAICodexDiagnosticOptions {

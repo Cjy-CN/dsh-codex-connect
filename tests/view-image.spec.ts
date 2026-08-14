@@ -1,7 +1,8 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
@@ -25,7 +26,6 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  vi.unstubAllGlobals()
   await ctx?.fiber.dispose()
   ctx = undefined
   await rm(workspace, { recursive: true, force: true })
@@ -78,18 +78,32 @@ describe('view_image', () => {
     expect(result.content.find(block => block.type === 'text' && block.text.includes('image/png'))).toBeDefined()
   })
 
-  it('follows an HTTP image URL and checks the received bytes', async () => {
+  it('refuses a loopback URL before any request reaches the local service', async () => {
     const context = await setup()
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(PNG_1X1, {
-      status: 200,
-      headers: { 'content-type': 'application/octet-stream' },
-    })))
+    let requests = 0
+    const server = createServer((_request, response) => {
+      requests += 1
+      response.writeHead(200, { 'content-type': 'image/png' })
+      response.end(PNG_1X1)
+    })
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', resolve)
+    })
+    try {
+      const address = server.address()
+      if (address === null || typeof address === 'string') throw new Error('loopback fixture did not bind a TCP port')
 
-    const result = await view(context, 'https://images.example/pixel')
+      const result = await view(context, `http://127.0.0.1:${String(address.port)}/pixel.png`)
 
-    expect(result.isError).toBe(false)
-    expect(result.content.some(block => block.type === 'image')).toBe(true)
-    expect(fetch).toHaveBeenCalledOnce()
+      expect(result.isError).toBe(true)
+      expect(result.content.find(block => block.type === 'text')?.text).toContain('public network address')
+      expect(requests).toBe(0)
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close(error => { if (error === undefined) resolve(); else reject(error) })
+      })
+    }
   })
 
   it('refuses a model that does not explicitly declare image input', async () => {
@@ -100,5 +114,19 @@ describe('view_image', () => {
 
     expect(result.isError).toBe(true)
     expect(result.content.find(block => block.type === 'text')?.text).toContain('does not declare image input')
+  })
+
+  it('presents remote URLs as network fetches and local paths as file reads', async () => {
+    const context = await setup()
+    const definition = context.tools.get(OpenAICodex.VIEW_IMAGE_TOOL_NAME)
+
+    expect(definition?.presentCall?.({ source: 'https://images.example/pixel.png' })).toMatchObject({
+      kind: 'fetch',
+      rawInput: 'https://images.example/pixel.png',
+    })
+    expect(definition?.presentCall?.({ source: 'pixel.png' })).toMatchObject({
+      kind: 'read',
+      locations: [{ path: 'pixel.png' }],
+    })
   })
 })

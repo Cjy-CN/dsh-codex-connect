@@ -77,6 +77,7 @@ To add the image-loading tool, set `enableImageTool: true` on `llm-openai-codex`
 - OAuth is stored separately at `$DSH_HOME/.openai-codex-auth.json` (`~/.dsh` by default); `~/.codex/auth.json` is never copied or modified.
 - The parent directory and file are created with owner-only permissions where supported. Writes are atomic, and refresh writes use a cross-process file lock.
 - Status and diagnostics return only non-sensitive state. OAuth flow output is confined to an explicit `login` operation.
+- Browser OAuth routes accept only loopback clients and loopback Host/Origin values; sign-in fails closed when no valid HTTPS authorization URL arrives within 30 seconds.
 - A second adapter cannot own `openai-codex`. Startup fails with a focused hint when the legacy `dsh-codex` bundle or a manual provider row conflicts.
 - Removing the package does not delete OAuth state. Run `logout` only when credential removal is intended.
 
@@ -86,6 +87,7 @@ To add the image-loading tool, set `enableImageTool: true` on `llm-openai-codex`
 - ChatGPT plan eligibility, model access, quotas, and backend behavior are controlled by OpenAI and may change.
 - The Codex endpoint does not enforce the ordinary Responses `max_output_tokens` field. Harness compaction still works, but that summary cap cannot be imposed server-side on this route.
 - Shell, filesystem, skills, MCP, subagents, approvals, permissions, attachments, session persistence, compaction, and recovery continue to come from the active Harness profile.
+- Remote `view_image` URLs are limited to public HTTP(S) destinations. Every DNS result and redirect is checked, and the connection is pinned to the validated address so localhost, private networks, link-local services, and cloud metadata endpoints remain unreachable.
 - No real OAuth operation is required for installation, build, tests, doctor, or package validation.
 
 See [INSTALL.md](INSTALL.md) for the idempotent agent runbook, [MIGRATION.md](MIGRATION.md) for migration from `dsh-codex`, and [docs/design.md](docs/design.md) for architecture details.
