@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: pnpm --config.minimum-release-age=0 install --frozen-lockfile
+      - name: Lint package and source hygiene
+        run: pnpm run lint
+      - name: Typecheck host and browser entries
+        run: pnpm run typecheck
+      - name: Test
+        run: pnpm run test
+      - name: Build
+        run: pnpm run build
+      - name: Validate package contents
+        run: pnpm run pack:check
+
+  # Alpha CI deliberately has no npm-publish job. Publishing requires a later,
+  # separately authorized release workflow.

@@ -41,7 +41,7 @@ async function setup(): Promise<Context> {
   await context.plugin(LocalAttachmentStore, { dshHome })
   await context.plugin(LlmRuntime)
   await context.plugin(WebRuntime)
-  await context.plugin(OpenAICodex)
+  await context.plugin(OpenAICodex, { enableImageTool: true })
   return context
 }
 

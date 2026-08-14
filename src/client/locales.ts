@@ -1,7 +1,7 @@
-/** English copy for the OpenAI Codex settings page. */
+/** English copy for the Codex Connect settings page. */
 export const en = {
-  nav: 'OpenAI Codex',
-  title: 'OpenAI Codex',
+  nav: 'Codex Connect for dsh',
+  title: 'Codex Connect for dsh',
   intro: 'Use your ChatGPT subscription in dsh without an API key.',
   loadingAccount: 'Loading account…',
   signedOut: 'Not signed in',
@@ -31,10 +31,10 @@ export const en = {
 /** Keys shared by both dictionaries. */
 export type OpenAICodexSettingsKey = keyof typeof en
 
-/** Chinese copy for the OpenAI Codex settings page. */
+/** Chinese copy for the Codex Connect settings page. */
 export const zh: { [Key in OpenAICodexSettingsKey]: string } = {
-  nav: 'OpenAI Codex',
-  title: 'OpenAI Codex',
+  nav: 'Codex Connect for dsh',
+  title: 'Codex Connect for dsh',
   intro: '使用 ChatGPT 订阅在 dsh 中调用模型，无需 API Key。',
   loadingAccount: '正在加载账户信息…',
   signedOut: '尚未登录',

@@ -30,7 +30,7 @@ describe('OpenAI Codex real composition', () => {
       '- id: web',
       "  name: 'test-web-service'",
       '- id: llm-openai-codex',
-      '  name: dsh-codex',
+      '  name: dsh-codex-connect',
       '',
     ].join('\n'))
 
@@ -42,7 +42,7 @@ describe('OpenAI Codex real composition', () => {
     const modules = new Map<string, unknown>([
       ['test-llm-service', LlmRuntime],
       ['test-web-service', WebRuntime],
-      ['dsh-codex', OpenAICodex],
+      ['dsh-codex-connect', OpenAICodex],
     ])
     ctx.loader.internal = {
       version: 'v2',
@@ -57,11 +57,14 @@ describe('OpenAI Codex real composition', () => {
     })
     await ctx.loader.await()
 
-    expect(ctx.llm.listProviders()).toEqual([{ id: 'openai-codex', name: 'OpenAI Codex' }])
+    expect(ctx.llm.listProviders()).toEqual([{ id: 'openai-codex', name: 'Codex Connect for dsh' }])
     const models = await ctx.llm.listModels('openai-codex')
     expect(models.some(model => model.id === 'gpt-5.6-sol')).toBe(true)
 
-    const entry = [...ctx.loader.entries()].find(candidate => candidate.options.name === 'dsh-codex')
+    await expect(ctx.web.search({ query: 'must stay unconfigured' }))
+      .rejects.toMatchObject({ code: 'WEB_PROVIDER_UNAVAILABLE' })
+
+    const entry = [...ctx.loader.entries()].find(candidate => candidate.options.name === 'dsh-codex-connect')
     if (entry === undefined) throw new Error('OpenAI Codex Loader entry missing')
     if (entry.fiber === undefined) throw new Error('OpenAI Codex plugin fiber missing')
     await entry.fiber.dispose()

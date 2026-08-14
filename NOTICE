@@ -1,0 +1,10 @@
+dsh-codex-connect
+Copyright 2026 Yan-Zero
+
+This product is derived from Yan-Zero/dsh-codex:
+https://github.com/Yan-Zero/dsh-codex
+
+The dsh-codex-connect project adds a distinct package identity, opt-in routing
+and capabilities, secret-free diagnostics, provider-conflict guidance,
+migration documentation, and Alpha release validation. Modified files retain
+the Apache License, Version 2.0 included in LICENSE.

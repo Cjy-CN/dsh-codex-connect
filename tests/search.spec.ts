@@ -226,6 +226,7 @@ describe('OpenAI Codex composite plugin', () => {
     await ctx.plugin(LlmRuntime)
     await ctx.plugin(WebRuntime, { searchProvider: OpenAICodex.OPENAI_CODEX_SEARCH_PROVIDER })
     const fiber = await ctx.plugin(OpenAICodex, {
+      enableSearch: true,
       searchModel: 'gpt-search-plugin',
       searchMode: 'live' satisfies OpenAICodexSearchMode,
       searchContextSize: 'high',

@@ -1,4 +1,4 @@
-/** Browser half: OpenAI Codex account management inside dsh Settings. */
+/** Browser half: Codex Connect account management inside dsh Settings. */
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
@@ -11,20 +11,20 @@ import type { OpenAICodexSettingsKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    /** OpenAI Codex account page copy. */
+    /** Codex Connect account page copy. */
     'settings.openai-codex': OpenAICodexSettingsKey
   }
 }
 
 /** Stable browser-plugin name. */
-export const name = 'dsh-codex-client'
+export const name = 'dsh-codex-connect-client'
 /** Client services required by the settings contribution. */
 export const inject = ['slots', 'locale']
 
-/** Register account copy and the OpenAI Codex settings page. */
+/** Register account copy and the Codex Connect settings page. */
 export function apply(ctx: ClientContext): void {
   const namespace = 'settings.openai-codex'
-  ctx.effect(() => ctx.locale.register(namespace, { zh, en }), 'dsh-openai-codex: settings copy')
+  ctx.effect(() => ctx.locale.register(namespace, { zh, en }), 'dsh-codex-connect: settings copy')
   const t = ctx.locale.bind(namespace) as OpenAICodexSettingsInjected['t']
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',

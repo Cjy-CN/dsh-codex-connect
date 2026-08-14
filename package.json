@@ -1,30 +1,36 @@
 {
-  "name": "dsh-codex",
-  "description": "ChatGPT OAuth, Codex models, standalone search, and image input for DeepSeek Harness",
-  "version": "0.2.1",
+  "name": "dsh-codex-connect",
+  "displayName": "Codex Connect for dsh",
+  "description": "ChatGPT OAuth and Codex models for DeepSeek Harness.",
+  "version": "0.1.0-alpha.1",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Yan-Zero/dsh-codex.git"
+    "url": "git+https://github.com/franksong2702/dsh-codex-connect.git"
   },
-  "homepage": "https://github.com/Yan-Zero/dsh-codex#readme",
+  "homepage": "https://github.com/franksong2702/dsh-codex-connect#readme",
   "bugs": {
-    "url": "https://github.com/Yan-Zero/dsh-codex/issues"
+    "url": "https://github.com/franksong2702/dsh-codex-connect/issues"
   },
   "type": "module",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "bin": {
-    "dsh-openai-codex": "lib/bin.js"
+    "dsh-codex-connect": "lib/bin.js"
   },
   "scripts": {
-    "build": "pnpm run typecheck && tsdown",
+    "lint": "node scripts/lint.mjs",
+    "build": "tsdown",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.client.json",
-    "check": "pnpm run typecheck && pnpm run test && pnpm run build",
+    "pack:check": "node scripts/check-pack.mjs",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run pack:check",
     "prepublishOnly": "pnpm --config.minimum-release-age=0 run check"
   },
   "exports": {
@@ -42,10 +48,11 @@
   },
   "files": [
     "lib",
-    "src",
     "cordis.patch.yml",
     "docs",
-    "INSTALL.md"
+    "INSTALL.md",
+    "MIGRATION.md",
+    "NOTICE"
   ],
   "license": "Apache-2.0",
   "dsh": {

@@ -7,6 +7,47 @@ import { Context } from "@deepseek-ai/cordis";
 /** Stable Codex tool name. */
 declare const VIEW_IMAGE_TOOL_NAME = "view_image";
 //#endregion
+//#region src/doctor.d.ts
+/** Inputs that are safe to obtain without booting OAuth. */
+interface OpenAICodexDiagnosticOptions {
+  /** Credential pathname to inspect through metadata only. */
+  credentialPath?: string;
+  /** Provider ids already registered in the active Harness context. */
+  providerIds?: readonly string[];
+  /** Whether the optional standalone search provider is enabled. */
+  enableSearch?: boolean;
+  /** Whether the optional image tool is enabled. */
+  enableImageTool?: boolean;
+}
+interface OpenAICodexDiagnosticReport {
+  package: 'dsh-codex-connect';
+  version: string;
+  node: string;
+  credentialFile: {
+    path: string;
+    state: 'missing' | 'owner-only' | 'permissions-too-broad' | 'not-a-regular-file' | 'unreadable-metadata';
+    mode?: string;
+  };
+  capabilities: {
+    modelProvider: true;
+    search: boolean;
+    imageTool: boolean;
+    changesHarnessDefaultModel: false;
+    changesHarnessSearchRoute: false;
+  };
+  providerConflict: boolean;
+  hints: string[];
+}
+/** Actionable message for legacy/manual `openai-codex` adapter collisions. */
+declare function openAICodexConflictMessage(): string;
+/** Fail before the generic registry error so the collision has a migration hint. */
+declare function assertNoOpenAICodexProviderConflict(providerIds: readonly string[]): void;
+/**
+ * Inspect only process and filesystem metadata. This function never opens the
+ * OAuth document, refreshes a token, or starts an authorization flow.
+ */
+declare function diagnoseOpenAICodex(options?: OpenAICodexDiagnosticOptions): Promise<OpenAICodexDiagnosticReport>;
+//#endregion
 //#region src/store.d.ts
 /** Provider route and pi-ai provider id owned by this bundle. */
 declare const OPENAI_CODEX_PROVIDER = "openai-codex";
@@ -241,10 +282,14 @@ declare function openAICodexAuthStatus(store?: OpenAICodexCredentialStore): Prom
 //#region src/index.d.ts
 /** Stable Cordis plugin name. */
 declare const name = "llm-openai-codex";
-/** LLM and web registries required before the composite provider can register. */
+/** The model registry required before the provider can register. */
 declare const inject: string[];
 /** Composite model and standalone-search configuration. */
 interface Config {
+  /** Register the optional standalone Codex search provider. */
+  enableSearch?: boolean;
+  /** Register the optional image-loading tool. */
+  enableImageTool?: boolean;
   /** Model used for auxiliary standalone searches. */
   searchModel?: string;
   /** Cached, indexed, or live web access. */
@@ -256,11 +301,12 @@ interface Config {
 }
 declare const Config: z<Config>;
 /**
- * Register the `openai-codex` LLM route and standalone web-search provider
- * with one provider-native OAuth credential store.
- * @param ctx - plugin context carrying the LLM and web registries plus optional agent and attachment services.
- * @param config - standalone-search model, access mode, context size, and output budget.
+ * Register the `openai-codex` LLM route with one provider-native OAuth store.
+ * Search and image tooling are added only when their config flags are true.
+ * Selecting this route as the Harness default remains a separate profile choice.
+ * @param ctx - plugin context carrying the LLM registry plus optional services.
+ * @param config - capability gates and standalone-search tuning.
  */
 declare function apply(ctx: Context, config: Config): void;
 //#endregion
-export { Config, DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE, DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_CODEX_SEARCH_MODE, DEFAULT_OPENAI_CODEX_SEARCH_MODEL, OPENAI_CODEX_AUTH_FILENAME, OPENAI_CODEX_BASE_URL, OPENAI_CODEX_PROVIDER, OPENAI_CODEX_SEARCH_MODEL_REQUEST_EVENT, OPENAI_CODEX_SEARCH_PROVIDER, OPENAI_CODEX_SEARCH_URL, OPENAI_CODEX_USAGE_URL, type OpenAICodexAuthStatus, OpenAICodexCredentialStore, type OpenAICodexCredits, type OpenAICodexIndividualLimit, type OpenAICodexRateLimit, type OpenAICodexRateLimitWindow, type OpenAICodexSearchContextSize, type OpenAICodexSearchMode, OpenAICodexSearchProvider, type OpenAICodexSearchProviderOptions, type OpenAICodexSearchRequestRecord, type OpenAICodexUsage, VIEW_IMAGE_TOOL_NAME, apply, inject, installOpenAICodexSearchEvent, loginOpenAICodex, logoutOpenAICodex, mapOpenAICodexSearchResponse, name, openAICodexAuthPath, openAICodexAuthStatus, parseOpenAICodexUsage, readOpenAICodexRateLimits, recordOpenAICodexSearchRequest };
+export { Config, DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE, DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_CODEX_SEARCH_MODE, DEFAULT_OPENAI_CODEX_SEARCH_MODEL, OPENAI_CODEX_AUTH_FILENAME, OPENAI_CODEX_BASE_URL, OPENAI_CODEX_PROVIDER, OPENAI_CODEX_SEARCH_MODEL_REQUEST_EVENT, OPENAI_CODEX_SEARCH_PROVIDER, OPENAI_CODEX_SEARCH_URL, OPENAI_CODEX_USAGE_URL, type OpenAICodexAuthStatus, OpenAICodexCredentialStore, type OpenAICodexCredits, type OpenAICodexDiagnosticOptions, type OpenAICodexDiagnosticReport, type OpenAICodexIndividualLimit, type OpenAICodexRateLimit, type OpenAICodexRateLimitWindow, type OpenAICodexSearchContextSize, type OpenAICodexSearchMode, OpenAICodexSearchProvider, type OpenAICodexSearchProviderOptions, type OpenAICodexSearchRequestRecord, type OpenAICodexUsage, VIEW_IMAGE_TOOL_NAME, apply, assertNoOpenAICodexProviderConflict, diagnoseOpenAICodex, inject, installOpenAICodexSearchEvent, loginOpenAICodex, logoutOpenAICodex, mapOpenAICodexSearchResponse, name, openAICodexAuthPath, openAICodexAuthStatus, openAICodexConflictMessage, parseOpenAICodexUsage, readOpenAICodexRateLimits, recordOpenAICodexSearchRequest };

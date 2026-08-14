@@ -217,7 +217,7 @@ export function viewImageTool(ctx: Context): ToolDefinition {
       if (exec.parent !== undefined) {
         exec.deferContext(createUserMessage({
           content: contentOf(value),
-          source: { kind: 'plugin', plugin: 'dsh-openai-codex' },
+          source: { kind: 'plugin', plugin: 'dsh-codex-connect' },
         }))
       }
       return value

@@ -208,5 +208,5 @@ export function registerOpenAICodexAuthRoutes(
       for (const dispose of routes) dispose()
       await auth.dispose()
     }
-  }, 'dsh-openai-codex: Web OAuth routes')
+  }, 'dsh-codex-connect: Web OAuth routes')
 }

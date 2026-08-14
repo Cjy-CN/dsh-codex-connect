@@ -24,7 +24,7 @@ declare module '@deepseek-ai/dsh-session/types' {
  */
 export function installOpenAICodexSearchEvent(): void {
   if (!(KNOWN_SESSION_EVENT_TYPES instanceof Set)) {
-    throw new Error('dsh-openai-codex: this Harness build does not expose an extensible session event vocabulary')
+    throw new Error('dsh-codex-connect: this Harness build does not expose an extensible session event vocabulary')
   }
   KNOWN_SESSION_EVENT_TYPES.add(OPENAI_CODEX_SEARCH_MODEL_REQUEST_EVENT)
 }

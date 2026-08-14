@@ -1,108 +1,105 @@
-# dsh Codex
+# Codex Connect for dsh
 
 English | [中文](README.zh.md)
 
-Use a ChatGPT subscription in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) through OpenAI's Codex sign-in flow—no OpenAI Platform API key required and no dsh source patch required.
+Connect your ChatGPT subscription to DeepSeek Harness with OAuth, user-controlled defaults, Harness-native approvals, diagnostics, and reliable session recovery.
 
-`dsh-codex` is an independent dsh bundle. It adds:
+`dsh-codex-connect` adds the `openai-codex` model catalog and a separate ChatGPT OAuth login. Models run through Harness's normal LLM service, so streaming, tool calls, reasoning replay, compaction, filesystem controls, permission gates, and approval prompts remain Harness-owned. It does not turn a ChatGPT subscription into an OpenAI Platform API credential.
 
-- ChatGPT OAuth from the dsh Settings panel or a standalone CLI, with automatic token refresh
-- the Codex GPT catalog, including vision-capable models when the account offers them
-- streaming, tool calls, reasoning replay, prompt caching, and dsh compaction through the normal LLM service
-- Codex standalone web search through dsh's existing `web_search` tool
-- a `view_image` tool that can load a local path or an HTTP(S) image URL
-- browser image input through dsh's existing paste and drop controls
-
-ChatGPT subscription authentication and usage-based OpenAI API access are different products. This plugin uses the ChatGPT Codex backend only; it does not turn a subscription into a general-purpose OpenAI API credential.
+Installation is additive. The bundle does not replace the current default model or search route, and its standalone search provider and `view_image` tool are disabled until explicitly enabled.
 
 ## Install
 
-Install the prebuilt bundle from npm into the selected dsh profile:
-
 ```sh
-dsh plugin --profile web add dsh-codex
+dsh plugin --profile web add dsh-codex-connect
 dsh web
 ```
 
-From a DeepSeek Harness source checkout, use `pnpm dsh plugin --profile web add dsh-codex`. A local plugin checkout can still be installed with `link:/absolute/path/to/dsh-codex` for development.
+From a DeepSeek Harness source checkout, prefix commands with `pnpm`. For a local checkout, install `link:/absolute/path/to/dsh-codex-connect`.
 
-Open **Settings → OpenAI Codex → Sign in with ChatGPT**. The plugin opens OpenAI's authorization page and completes the localhost callback. The account page shows live Codex quota bars and exact remaining percentages; exact credit balances or workspace limits appear only when the account API supplies them.
-
-The CLI remains available for terminal and headless installations:
+Sign in from **Settings → Codex Connect for dsh → Sign in with ChatGPT**, or use the CLI:
 
 ```sh
-dsh plugin --profile web exec dsh-openai-codex login
-dsh plugin --profile web exec dsh-openai-codex login --device-code
-dsh plugin --profile web exec dsh-openai-codex status
-dsh plugin --profile web exec dsh-openai-codex logout
+dsh plugin --profile web exec dsh-codex-connect login
+dsh plugin --profile web exec dsh-codex-connect status
+dsh plugin --profile web exec dsh-codex-connect doctor
 ```
 
-Codex, Claude Code, and other automation agents should follow [INSTALL.md](INSTALL.md). It is a complete, idempotent runbook and does not require reading this repository's source or design notes.
+The doctor command reads process and filesystem metadata only. It never opens the OAuth document or prints a token, authorization URL, authorization code, account id, or auth-file content.
 
-The bundle selects `openai-codex` / `gpt-5.6-sol` for new agents and selects the Codex search provider. A model already saved in dsh settings still takes precedence; the model picker can select any other Codex model visible to the signed-in account.
+## Explicit configuration
 
-## Images
-
-Image support uses dsh's durable attachment path:
-
-- paste an image into the Web composer with <kbd>Ctrl</kbd>+<kbd>V</kbd>, or drag and drop it;
-- ask the model to call `view_image` with `source` set to a local absolute/relative path or an HTTP(S) URL;
-- PNG, JPEG, WebP, and GIF are accepted within the active dsh attachment limits;
-- only a model that explicitly advertises image input may receive an image.
-
-The tool stores validated bytes as a dsh attachment before returning the actual image block. Local paths pass through the configured filesystem service. Remote redirects are bounded and credentials embedded in URLs are rejected.
-
-## Search
-
-The provider connects dsh's `web_search` tool to the standalone search protocol used by Codex. It returns ordinary dsh text and HTTP(S) citations, so later turns and compaction retain the tool history.
-
-Configure the `llm-openai-codex` row in a profile patch:
+The installed bundle row is intentionally inert beyond model-provider registration:
 
 ```yaml
 - id: llm-openai-codex
   config:
+    enableSearch: false
+    enableImageTool: false
+```
+
+To make a Codex model the default for new agents, add or update the separate Harness row yourself:
+
+```yaml
+- id: agent-default-model
+  config:
+    provider: openai-codex
+    model: gpt-5.6-sol
+```
+
+To enable and select Codex standalone search, both choices must be explicit:
+
+```yaml
+- id: llm-openai-codex
+  config:
+    enableSearch: true
     searchMode: live
     searchContextSize: medium
+
+- id: web
+  config:
+    searchProvider: openai-codex
 ```
+
+To add the image-loading tool, set `enableImageTool: true` on `llm-openai-codex`. Browser paste/drop remains a Harness attachment feature and does not depend on this tool.
 
 | Field | Default | Values |
 |---|---:|---|
-| `searchModel` | `gpt-5.6-sol` | a Codex model id |
+| `enableSearch` | `false` | boolean |
+| `enableImageTool` | `false` | boolean |
+| `searchModel` | `gpt-5.6-sol` | Codex model id |
 | `searchMode` | `cached` | `cached`, `indexed`, `live` |
 | `searchContextSize` | `medium` | `low`, `medium`, `high` |
 | `searchMaxOutputTokens` | `10000` | positive integer |
 
-Each resolved, secret-free auxiliary request is recorded before dispatch as the dedicated `web/openai-codex-search-llm-request` session event. The event is owned and registered by this plugin; no generic search event or dsh fork is required.
+## Credentials, diagnostics, and conflicts
 
-## Credentials and privacy
+- OAuth is stored separately at `$DSH_HOME/.openai-codex-auth.json` (`~/.dsh` by default); `~/.codex/auth.json` is never copied or modified.
+- The parent directory and file are created with owner-only permissions where supported. Writes are atomic, and refresh writes use a cross-process file lock.
+- Status and diagnostics return only non-sensitive state. OAuth flow output is confined to an explicit `login` operation.
+- A second adapter cannot own `openai-codex`. Startup fails with a focused hint when the legacy `dsh-codex` bundle or a manual provider row conflicts.
+- Removing the package does not delete OAuth state. Run `logout` only when credential removal is intended.
 
-dsh keeps this login separate from Codex CLI/Desktop:
+## Compatibility and security boundary
 
-- credentials are stored at `$DSH_HOME/.openai-codex-auth.json` (`~/.dsh` by default);
-- writes are atomic and token refresh is locked across local dsh processes;
-- browser status and diagnostics never return token values;
-- `~/.codex/auth.json` is never copied or modified.
-
-Keeping the stores separate prevents two clients from racing the same rotating refresh token. Removing the bundle does not delete the credential; use the account page or `logout` command when the local account should be removed.
-
-## Compatibility notes
-
-- The plugin runs on the standard dsh plugin surfaces and does not require a modified Harness checkout.
+- Alpha compatibility targets the current Harness `0.1.0-rc.5` main-line composition and compatible `0.1.0-rc.6` plugin APIs, Node.js `^22.19.0 || >=24.0.0`, and the pinned `@earendil-works/pi-ai` Codex provider.
 - ChatGPT plan eligibility, model access, quotas, and backend behavior are controlled by OpenAI and may change.
-- The Codex endpoint does not enforce the ordinary Responses `max_output_tokens` field. Compaction works, but its configured summary cap cannot be imposed server-side on this route.
-- Filesystem, shell, skills, MCP, subagents, permissions, attachments, compaction, and the `web_search` tool itself still come from the active dsh profile.
-- The standalone search endpoint is not a public OpenAI Platform API. Compatibility follows the pinned Codex/pi-ai implementation.
+- The Codex endpoint does not enforce the ordinary Responses `max_output_tokens` field. Harness compaction still works, but that summary cap cannot be imposed server-side on this route.
+- Shell, filesystem, skills, MCP, subagents, approvals, permissions, attachments, session persistence, compaction, and recovery continue to come from the active Harness profile.
+- No real OAuth operation is required for installation, build, tests, doctor, or package validation.
 
-See [the design document](docs/design.md) for protocol, persistence, and lifecycle details.
+See [INSTALL.md](INSTALL.md) for the idempotent agent runbook, [MIGRATION.md](MIGRATION.md) for migration from `dsh-codex`, and [docs/design.md](docs/design.md) for architecture details.
 
 ## Development
 
 ```sh
-pnpm install
+pnpm install --frozen-lockfile
 pnpm run check
 ```
 
-The check performs strict Host and browser TypeScript checking, focused tests, and both runtime bundles.
+## Legal / Acknowledgements
+
+Copyright 2026 Yan-Zero. This project is derived from [Yan-Zero/dsh-codex](https://github.com/Yan-Zero/dsh-codex) and retains its Apache-2.0 license and attribution. Modifications for `dsh-codex-connect` are documented in [NOTICE](NOTICE). This project is not affiliated with or endorsed by OpenAI, ChatGPT, Codex, DeepSeek, or DeepSeek Harness.
 
 ## License
 
