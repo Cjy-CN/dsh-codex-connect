@@ -1,4 +1,4 @@
-/** Plugin-owned OpenAI Codex account page inside the dsh Settings shell. */
+/** Plugin-owned OpenAI Codex account page inside the dsh Plugins section. */
 
 import { useCallback, useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'

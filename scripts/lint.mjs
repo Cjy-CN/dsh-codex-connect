@@ -4,7 +4,7 @@ const packageJson = JSON.parse(await readFile(new URL('../package.json', import.
 const failures = []
 
 if (packageJson.name !== 'dsh-codex-connect') failures.push('package name must be dsh-codex-connect')
-if (packageJson.version !== '0.1.0-alpha.1') failures.push('package version must be 0.1.0-alpha.1')
+if (packageJson.version !== '0.1.0-alpha.2') failures.push('package version must be 0.1.0-alpha.2')
 if (packageJson.displayName !== 'Codex Connect for dsh') failures.push('displayName mismatch')
 if (packageJson.description !== 'ChatGPT OAuth and Codex models for DeepSeek Harness.') failures.push('description mismatch')
 

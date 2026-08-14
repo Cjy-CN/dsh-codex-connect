@@ -27,7 +27,7 @@ Install `dsh-codex-connect` into one requested DeepSeek Harness profile without 
    dsh plugin --profile web exec dsh-codex-connect doctor
    ```
 
-6. If the user explicitly requests login, check `status`, then use `login` or `login --device-code`. OAuth approval belongs to the user.
+6. If the user explicitly requests login, open **Settings → Plugins → OpenAI Codex**, or check `status` and then use `login` or `login --device-code`. OAuth approval belongs to the user.
 
 ## Optional configuration
 

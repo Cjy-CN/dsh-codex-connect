@@ -17,7 +17,7 @@ dsh web
 
 From a DeepSeek Harness source checkout, prefix commands with `pnpm`. For a local checkout, install `link:/absolute/path/to/dsh-codex-connect`.
 
-Sign in from **Settings → Codex Connect for dsh → Sign in with ChatGPT**, or use the CLI:
+Sign in from **Settings → Plugins → OpenAI Codex → Sign in with ChatGPT**, or use the CLI:
 
 ```sh
 dsh plugin --profile web exec dsh-codex-connect login

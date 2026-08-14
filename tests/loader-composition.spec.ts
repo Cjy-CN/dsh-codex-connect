@@ -57,7 +57,7 @@ describe('OpenAI Codex real composition', () => {
     })
     await ctx.loader.await()
 
-    expect(ctx.llm.listProviders()).toEqual([{ id: 'openai-codex', name: 'Codex Connect for dsh' }])
+    expect(ctx.llm.listProviders()).toEqual([{ id: 'openai-codex', name: 'OpenAI Codex' }])
     const models = await ctx.llm.listModels('openai-codex')
     expect(models.some(model => model.id === 'gpt-5.6-sol')).toBe(true)
 
