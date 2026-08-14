@@ -1,4 +1,4 @@
-# Codex Connect for dsh
+# Codex Connect
 
 English | [中文](README.zh.md)
 
@@ -17,7 +17,7 @@ dsh web
 
 From a DeepSeek Harness source checkout, prefix commands with `pnpm`. For a local checkout, install `link:/absolute/path/to/dsh-codex-connect`.
 
-Sign in from **Settings → Plugins → Plugin configuration → OpenAI Codex → Sign in with ChatGPT**, or use the CLI:
+Sign in from **Settings → Plugins → Plugin configuration → Codex Connect → Sign in with ChatGPT**, or use the CLI:
 
 ```sh
 dsh plugin --profile web exec dsh-codex-connect login
@@ -29,7 +29,7 @@ The doctor command reads process and filesystem metadata only. It never opens th
 
 ## Explicit configuration
 
-Open **Settings → Plugins → Plugin configuration → OpenAI Codex** to manage the ChatGPT account and optional capabilities in one card. Changes use Harness's revision-fenced settings store and apply live. **Save changes** affects only this plugin's capability section; it never selects a default model or global search route.
+Open **Settings → Plugins → Plugin configuration → Codex Connect** to manage the ChatGPT account and optional capabilities in one card. Changes use Harness's revision-fenced settings store and apply live. **Save changes** affects only this plugin's capability section; it never selects a default model or global search route.
 
 The installed bundle row remains the composition base and is intentionally inert beyond model-provider registration:
 

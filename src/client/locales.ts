@@ -1,6 +1,6 @@
 /** English copy for the OpenAI Codex Plugin configuration card. */
 export const en = {
-  title: 'OpenAI Codex',
+  title: 'Codex Connect',
   intro: 'Use your ChatGPT subscription in dsh without an API key.',
   accountHeading: 'ChatGPT account',
   expand: 'Expand settings',
@@ -62,7 +62,7 @@ export type OpenAICodexSettingsKey = keyof typeof en
 
 /** Chinese copy for the OpenAI Codex Plugin configuration card. */
 export const zh: { [Key in OpenAICodexSettingsKey]: string } = {
-  title: 'OpenAI Codex',
+  title: 'Codex Connect',
   intro: '使用 ChatGPT 订阅在 dsh 中调用模型，无需 API Key。',
   accountHeading: 'ChatGPT 账户',
   expand: '展开设置',

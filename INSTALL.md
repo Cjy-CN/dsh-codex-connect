@@ -27,11 +27,11 @@ Install `dsh-codex-connect` into one requested DeepSeek Harness profile without 
    dsh plugin --profile web exec dsh-codex-connect doctor
    ```
 
-6. If the user explicitly requests login, open **Settings → Plugins → Plugin configuration → OpenAI Codex**, or check `status` and then use `login` or `login --device-code`. OAuth approval belongs to the user.
+6. If the user explicitly requests login, open **Settings → Plugins → Plugin configuration → Codex Connect**, or check `status` and then use `login` or `login --device-code`. OAuth approval belongs to the user.
 
 ## Optional configuration
 
-Use **Settings → Plugins → Plugin configuration → OpenAI Codex** for live, staged Save/Discard edits. The package row accepts the same `enableSearch` and `enableImageTool` fields as its composition base, both defaulting to `false`. Enabling search registers a provider but does not select it; selecting `web.searchProvider: openai-codex` is a second explicit profile change. Setting `agent-default-model` to `openai-codex` is also a separate explicit change.
+Use **Settings → Plugins → Plugin configuration → Codex Connect** for live, staged Save/Discard edits. The package row accepts the same `enableSearch` and `enableImageTool` fields as its composition base, both defaulting to `false`. Enabling search registers a provider but does not select it; selecting `web.searchProvider: openai-codex` is a second explicit profile change. Setting `agent-default-model` to `openai-codex` is also a separate explicit change.
 
 Apply only requested choices and preserve unrelated keys:
 

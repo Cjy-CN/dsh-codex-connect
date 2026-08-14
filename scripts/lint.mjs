@@ -5,7 +5,7 @@ const failures = []
 
 if (packageJson.name !== 'dsh-codex-connect') failures.push('package name must be dsh-codex-connect')
 if (!/^0\.1\.0-alpha\.[1-9]\d*(?:\.\d+)?$/u.test(packageJson.version)) failures.push('package version must be a 0.1.0 alpha release')
-if (packageJson.displayName !== 'Codex Connect for dsh') failures.push('displayName mismatch')
+if (packageJson.displayName !== 'Codex Connect') failures.push('displayName mismatch')
 if (packageJson.description !== 'ChatGPT OAuth and Codex models for DeepSeek Harness.') failures.push('description mismatch')
 
 const productFiles = [
@@ -28,7 +28,7 @@ for (const filename of productFiles) {
 
 const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
 const fullDescription = 'Connect your ChatGPT subscription to DeepSeek Harness with OAuth, user-controlled defaults, Harness-native approvals, diagnostics, and reliable session recovery.'
-if (!readme.startsWith(`# Codex Connect for dsh\n\nEnglish | [中文](README.zh.md)\n\n${fullDescription}\n`)) {
+if (!readme.startsWith(`# Codex Connect\n\nEnglish | [中文](README.zh.md)\n\n${fullDescription}\n`)) {
   failures.push('README opening description mismatch')
 }
 

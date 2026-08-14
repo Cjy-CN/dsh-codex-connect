@@ -1,4 +1,4 @@
-# Codex Connect for dsh：Alpha 设计
+# Codex Connect：Alpha 设计
 
 ## 所有权与组合
 

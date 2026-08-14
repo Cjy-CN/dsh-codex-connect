@@ -14,7 +14,7 @@ describe('OpenAI Codex browser contribution', () => {
     expect(client).not.toContain("ctx.slots.inject('settings.section'")
   })
 
-  it('renders an accessible card and uses OpenAI Codex for the Composer provider', async () => {
+  it('renders a Codex Connect card and uses OpenAI Codex for the Composer provider', async () => {
     const [clientCard, locales, adapter] = await Promise.all([
       readFile(new URL('../src/client/OpenAICodexPluginCard.tsx', import.meta.url), 'utf8'),
       readFile(new URL('../src/client/locales.ts', import.meta.url), 'utf8'),
@@ -22,7 +22,7 @@ describe('OpenAI Codex browser contribution', () => {
     ])
     expect(clientCard).toContain('<li style={cardStyle}>')
     expect(clientCard).toContain('aria-expanded={open}')
-    expect(locales.match(/title: 'OpenAI Codex'/gu)).toHaveLength(2)
+    expect(locales.match(/title: 'Codex Connect'/gu)).toHaveLength(2)
     expect(adapter).toContain("displayName: 'OpenAI Codex'")
   })
 })

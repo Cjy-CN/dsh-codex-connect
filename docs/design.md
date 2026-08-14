@@ -1,4 +1,4 @@
-# Codex Connect for dsh: Alpha design
+# Codex Connect: Alpha design
 
 ## Ownership and composition
 

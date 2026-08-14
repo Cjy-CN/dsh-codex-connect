@@ -122,7 +122,7 @@ export async function run(argv: readonly string[]): Promise<number> {
       case 'doctor': {
         const report = await diagnoseOpenAICodex()
         process.stdout.write([
-          `Codex Connect for dsh ${report.version} on ${report.node}`,
+          `Codex Connect ${report.version} on ${report.node}`,
           `OAuth file metadata: ${report.credentialFile.state} (${report.credentialFile.path})`,
           `Optional capability defaults: search=${report.capabilities.search ? 'enabled' : 'disabled'}, imageTool=${report.capabilities.imageTool ? 'enabled' : 'disabled'}`,
           'Harness defaults: unchanged by this plugin',
@@ -136,19 +136,19 @@ export async function run(argv: readonly string[]): Promise<number> {
       case 'status': {
         const status = await openAICodexAuthStatus()
         if (!status.authenticated) {
-          process.stdout.write('Codex Connect for dsh: signed out\n')
+          process.stdout.write('Codex Connect: signed out\n')
           return 1
         }
         const expires = status.expiresAt
         const suffix = expires === undefined || Number.isNaN(expires.valueOf())
           ? ''
           : `; access token expires ${expires.toISOString()} (refresh is automatic)`
-        process.stdout.write(`Codex Connect for dsh: signed in${suffix}\n`)
+        process.stdout.write(`Codex Connect: signed in${suffix}\n`)
         return 0
       }
       case 'logout':
         await logoutOpenAICodex()
-        process.stdout.write(`Codex Connect for dsh: signed out; removed ${openAICodexAuthPath()}\n`)
+        process.stdout.write(`Codex Connect: signed out; removed ${openAICodexAuthPath()}\n`)
         return 0
       case 'login': {
         const readline = createInterface({ input: process.stdin, output: process.stdout })
@@ -160,7 +160,7 @@ export async function run(argv: readonly string[]): Promise<number> {
         } finally {
           readline.close()
         }
-        process.stdout.write(`Codex Connect for dsh: signed in; credentials saved to ${openAICodexAuthPath()}\n`)
+        process.stdout.write(`Codex Connect: signed in; credentials saved to ${openAICodexAuthPath()}\n`)
         return 0
       }
     }

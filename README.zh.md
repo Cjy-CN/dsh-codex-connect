@@ -1,4 +1,4 @@
-# Codex Connect for dsh
+# Codex Connect
 
 [English](README.md) | 中文
 
@@ -17,7 +17,7 @@ dsh web
 
 在 DeepSeek Harness 源码 checkout 中运行时，在命令前加 `pnpm`。本地开发可安装 `link:/absolute/path/to/dsh-codex-connect`。
 
-可在 **设置 → 插件 → 插件配置 → OpenAI Codex → 使用 ChatGPT 登录**，也可使用 CLI：
+可在 **设置 → 插件 → 插件配置 → Codex Connect → 使用 ChatGPT 登录**，也可使用 CLI：
 
 ```sh
 dsh plugin --profile web exec dsh-codex-connect login
@@ -29,7 +29,7 @@ dsh plugin --profile web exec dsh-codex-connect doctor
 
 ## 显式配置
 
-打开 **设置 → 插件 → 插件配置 → OpenAI Codex**，可以在同一张卡片中管理 ChatGPT 账户和可选能力。更改通过 Harness 带 revision 防护的设置存储保存，并即时生效；**保存更改**只影响本插件的能力配置，绝不会选择默认模型或全局搜索路由。
+打开 **设置 → 插件 → 插件配置 → Codex Connect**，可以在同一张卡片中管理 ChatGPT 账户和可选能力。更改通过 Harness 带 revision 防护的设置存储保存，并即时生效；**保存更改**只影响本插件的能力配置，绝不会选择默认模型或全局搜索路由。
 
 安装后的 bundle 行仍是 composition base，只注册模型提供方，不改变路由：
 
