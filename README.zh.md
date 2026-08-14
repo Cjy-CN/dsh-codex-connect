@@ -29,7 +29,9 @@ dsh plugin --profile web exec dsh-codex-connect doctor
 
 ## 显式配置
 
-安装后的 bundle 只注册模型提供方，不改变路由：
+打开 **设置 → 插件 → 插件配置 → OpenAI Codex**，可以在同一张卡片中管理 ChatGPT 账户和可选能力。更改通过 Harness 带 revision 防护的设置存储保存，并即时生效；**保存更改**只影响本插件的能力配置，绝不会选择默认模型或全局搜索路由。
+
+安装后的 bundle 行仍是 composition base，只注册模型提供方，不改变路由：
 
 ```yaml
 - id: llm-openai-codex
@@ -47,7 +49,7 @@ dsh plugin --profile web exec dsh-codex-connect doctor
     model: gpt-5.6-sol
 ```
 
-如需启用并选中 Codex 独立搜索，两项都必须显式配置：
+卡片可以启用 Codex 独立搜索；如需把它选为 profile 的全局搜索提供方，仍需单独显式配置：
 
 ```yaml
 - id: llm-openai-codex

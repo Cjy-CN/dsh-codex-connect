@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
 import type { OpenAICodexUsage } from '../usage.ts'
+import type { OpenAICodexSettingsConfig } from '../settings-contract.ts'
 import {
   OPENAI_CODEX_AUTH_LOGIN_PATH,
   OPENAI_CODEX_AUTH_LOGOUT_PATH,
   OPENAI_CODEX_AUTH_STATUS_PATH,
 } from '../auth-paths.ts'
 import type { OpenAICodexSettingsKey } from './locales.ts'
+import { OpenAICodexConfiguration } from './OpenAICodexConfiguration.tsx'
 
 const POLL_INTERVAL_MS = 1_000
 const USAGE_POLL_INTERVAL_MS = 60_000
@@ -28,6 +31,8 @@ interface LoginChallenge {
 export interface OpenAICodexSettingsInjected {
   /** Localized page copy. */
   t: (key: OpenAICodexSettingsKey, params?: Record<string, unknown>) => string
+  /** Host-owned optional capability settings. */
+  configScope: SettingsScope<OpenAICodexSettingsConfig>
 }
 
 /** Props delivered by the settings slot renderer. */
@@ -183,7 +188,7 @@ async function jsonRequest<T>(path: string, method = 'GET', signal?: AbortSignal
 }
 
 /** OpenAI Codex account status and OAuth actions. */
-export function OpenAICodexSettings({ t, embedded = false }: OpenAICodexSettingsProps) {
+export function OpenAICodexSettings({ t, configScope, embedded = false }: OpenAICodexSettingsProps) {
   if (t === undefined) throw new Error('OpenAI Codex settings requires its translation function')
   const [status, setStatus] = useState<AccountStatus>({ status: 'loading' })
   const [busy, setBusy] = useState(false)
@@ -285,6 +290,7 @@ export function OpenAICodexSettings({ t, embedded = false }: OpenAICodexSettings
         </div>
       )}
       <div style={embedded ? embeddedCardStyle : cardStyle}>
+        <h3 style={quotaTitleStyle}>{t('accountHeading')}</h3>
         <div style={rowStyle}>
           <div style={statusStyle} role="status">
             <span aria-hidden="true" style={dotStyle(status.status)} />
@@ -304,6 +310,10 @@ export function OpenAICodexSettings({ t, embedded = false }: OpenAICodexSettings
               t={t}
             />
           : null}
+        <OpenAICodexConfiguration
+          t={t}
+          {...configScope === undefined ? {} : { scope: configScope }}
+        />
       </div>
     </section>
   )

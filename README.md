@@ -29,7 +29,9 @@ The doctor command reads process and filesystem metadata only. It never opens th
 
 ## Explicit configuration
 
-The installed bundle row is intentionally inert beyond model-provider registration:
+Open **Settings → Plugins → Plugin configuration → OpenAI Codex** to manage the ChatGPT account and optional capabilities in one card. Changes use Harness's revision-fenced settings store and apply live. **Save changes** affects only this plugin's capability section; it never selects a default model or global search route.
+
+The installed bundle row remains the composition base and is intentionally inert beyond model-provider registration:
 
 ```yaml
 - id: llm-openai-codex
@@ -47,7 +49,7 @@ To make a Codex model the default for new agents, add or update the separate Har
     model: gpt-5.6-sol
 ```
 
-To enable and select Codex standalone search, both choices must be explicit:
+The card can enable Codex standalone search. Selecting it as the profile's global search provider remains a separate explicit choice:
 
 ```yaml
 - id: llm-openai-codex

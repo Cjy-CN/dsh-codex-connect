@@ -5,6 +5,12 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-connection/client'
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import {
+  decodeOpenAICodexSettings,
+  OPENAI_CODEX_SETTINGS_NAMESPACE,
+} from '../settings-contract.ts'
 import { OpenAICodexPluginCard } from './OpenAICodexPluginCard.tsx'
 import type { OpenAICodexPluginCardInjected } from './OpenAICodexPluginCard.tsx'
 import { en, zh } from './locales.ts'
@@ -20,17 +26,21 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Stable browser-plugin name. */
 export const name = 'dsh-codex-connect-client'
 /** Client services required by the Plugin configuration contribution. */
-export const inject = ['slots', 'locale']
+export const inject = ['slots', 'locale', 'connection', 'remote', 'settingsScope']
 
 /** Register account copy and the OpenAI Codex card under Plugin configuration. */
 export function apply(ctx: ClientContext): void {
   const namespace = 'settings.openai-codex'
   ctx.effect(() => ctx.locale.register(namespace, { zh, en }), 'dsh-codex-connect: settings copy')
   const t = ctx.locale.bind(namespace) as OpenAICodexPluginCardInjected['t']
+  const configScope = ctx.settingsScope.bind({
+    namespace: OPENAI_CODEX_SETTINGS_NAMESPACE,
+    decode: decodeOpenAICodexSettings,
+  })
   ctx.slots.inject('settings.plugin.item', () => ctx.slots.register({
     name: 'settings.plugin.item',
     id: 'openai-codex',
     order: 30,
-    inject: (): OpenAICodexPluginCardInjected => ({ t }),
+    inject: (): OpenAICodexPluginCardInjected => ({ t, configScope }),
   }, OpenAICodexPluginCard))
 }

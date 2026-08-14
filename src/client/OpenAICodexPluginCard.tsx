@@ -43,7 +43,7 @@ const chevronStyle: CSSProperties = { flex: '0 0 auto', fontSize: 18, lineHeight
 const cardBodyStyle: CSSProperties = { borderTop: '1px solid var(--dsw-alias-border-l2)', padding: '16px 14px 18px' }
 
 /** Render account management as one expandable Plugin configuration card. */
-export function OpenAICodexPluginCard({ t }: OpenAICodexPluginCardProps) {
+export function OpenAICodexPluginCard({ t, configScope }: OpenAICodexPluginCardProps) {
   if (t === undefined) throw new Error('OpenAI Codex plugin card requires its translation function')
   const [open, setOpen] = useState(false)
   const title = t('title')
@@ -63,7 +63,13 @@ export function OpenAICodexPluginCard({ t }: OpenAICodexPluginCardProps) {
         <span aria-hidden="true" style={{ ...chevronStyle, transform: open ? 'rotate(180deg)' : 'none' }}>⌄</span>
       </button>
       {open
-        ? <div style={cardBodyStyle}><OpenAICodexSettings t={t} embedded /></div>
+        ? <div style={cardBodyStyle}>
+            <OpenAICodexSettings
+              t={t}
+              embedded
+              {...configScope === undefined ? {} : { configScope }}
+            />
+          </div>
         : null}
     </li>
   )

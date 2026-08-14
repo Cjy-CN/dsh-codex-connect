@@ -8,6 +8,8 @@ describe('OpenAI Codex browser contribution', () => {
     expect(client).toContain("name: 'settings.plugin.item'")
     expect(client).toContain("id: 'openai-codex'")
     expect(client).toContain('order: 30')
+    expect(client).toContain('ctx.settingsScope.bind')
+    expect(client).toContain('OPENAI_CODEX_SETTINGS_NAMESPACE')
     expect(client).not.toContain("ctx.slots.inject('settings.plugins.tab'")
     expect(client).not.toContain("ctx.slots.inject('settings.section'")
   })

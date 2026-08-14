@@ -139,6 +139,37 @@ declare function parseOpenAICodexUsage(value: unknown): OpenAICodexUsage;
  */
 declare function readOpenAICodexRateLimits(store: OpenAICodexCredentialStore): Promise<OpenAICodexUsage>;
 //#endregion
+//#region src/settings-contract.d.ts
+/** Node-free settings contract shared by the Host plugin and browser card. */
+/** Stable Harness settings namespace owned by this plugin. */
+declare const OPENAI_CODEX_SETTINGS_NAMESPACE = "llm-openai-codex";
+/** Search modes accepted by the Codex standalone search endpoint. */
+type OpenAICodexSearchMode = 'cached' | 'indexed' | 'live';
+/** Search-context sizes accepted by the Codex standalone search endpoint. */
+type OpenAICodexSearchContextSize = 'low' | 'medium' | 'high';
+/** Default model used by the standalone search endpoint. */
+declare const DEFAULT_OPENAI_CODEX_SEARCH_MODEL = "gpt-5.6-sol";
+/** Default search mode, matching the official local Codex client. */
+declare const DEFAULT_OPENAI_CODEX_SEARCH_MODE: OpenAICodexSearchMode;
+/** Default provider search-context size. */
+declare const DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE: OpenAICodexSearchContextSize;
+/** Default output budget for the standalone search response. */
+declare const DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS = 10000;
+/** Fully resolved user-editable section presented by Plugin configuration. */
+interface OpenAICodexSettingsConfig {
+  enableSearch: boolean;
+  enableImageTool: boolean;
+  searchModel: string;
+  searchMode: OpenAICodexSearchMode;
+  searchContextSize: OpenAICodexSearchContextSize;
+  searchMaxOutputTokens: number;
+}
+declare const DEFAULT_OPENAI_CODEX_SETTINGS: Readonly<OpenAICodexSettingsConfig>;
+/** Fill the schema defaults even when called without Cordis validation. */
+declare function resolveOpenAICodexSettings(value: Partial<OpenAICodexSettingsConfig>): OpenAICodexSettingsConfig;
+/** Narrow the redacted settings wire payload before it enters React state. */
+declare function decodeOpenAICodexSettings(value: unknown): OpenAICodexSettingsConfig | undefined;
+//#endregion
 //#region src/search.d.ts
 /** Stable dsh web-provider id selected by the bundle patch. */
 declare const OPENAI_CODEX_SEARCH_PROVIDER = "openai-codex";
@@ -146,18 +177,6 @@ declare const OPENAI_CODEX_SEARCH_PROVIDER = "openai-codex";
 declare const OPENAI_CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex";
 /** Standalone search endpoint used by the official Codex client. */
 declare const OPENAI_CODEX_SEARCH_URL = "https://chatgpt.com/backend-api/codex/alpha/search";
-/** Default model used by the standalone search endpoint. */
-declare const DEFAULT_OPENAI_CODEX_SEARCH_MODEL = "gpt-5.6-sol";
-/** Default search mode, matching the official local Codex client. */
-declare const DEFAULT_OPENAI_CODEX_SEARCH_MODE = "cached";
-/** Default provider search-context size. */
-declare const DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE = "medium";
-/** Default output budget for the standalone search response. */
-declare const DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS = 10000;
-/** Search modes accepted by the official standalone endpoint. */
-type OpenAICodexSearchMode = 'cached' | 'indexed' | 'live';
-/** Provider search-context sizes accepted by the standalone endpoint. */
-type OpenAICodexSearchContextSize = 'low' | 'medium' | 'high';
 interface SearchRequestBody {
   readonly id: string;
   readonly model: string;
@@ -284,6 +303,8 @@ declare function openAICodexAuthStatus(store?: OpenAICodexCredentialStore): Prom
 declare const name = "llm-openai-codex";
 /** The model registry required before the provider can register. */
 declare const inject: string[];
+/** Branded Host settings namespace used by the configurable-provider directory. */
+declare const OPENAI_CODEX_SETTINGS_NS: import("@deepseek-ai/dsh-settings").SettingsNamespace;
 /** Composite model and standalone-search configuration. */
 interface Config {
   /** Register the optional standalone Codex search provider. */
@@ -309,4 +330,4 @@ declare const Config: z<Config>;
  */
 declare function apply(ctx: Context, config: Config): void;
 //#endregion
-export { Config, DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE, DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_CODEX_SEARCH_MODE, DEFAULT_OPENAI_CODEX_SEARCH_MODEL, OPENAI_CODEX_AUTH_FILENAME, OPENAI_CODEX_BASE_URL, OPENAI_CODEX_PROVIDER, OPENAI_CODEX_SEARCH_MODEL_REQUEST_EVENT, OPENAI_CODEX_SEARCH_PROVIDER, OPENAI_CODEX_SEARCH_URL, OPENAI_CODEX_USAGE_URL, type OpenAICodexAuthStatus, OpenAICodexCredentialStore, type OpenAICodexCredits, type OpenAICodexDiagnosticOptions, type OpenAICodexDiagnosticReport, type OpenAICodexIndividualLimit, type OpenAICodexRateLimit, type OpenAICodexRateLimitWindow, type OpenAICodexSearchContextSize, type OpenAICodexSearchMode, OpenAICodexSearchProvider, type OpenAICodexSearchProviderOptions, type OpenAICodexSearchRequestRecord, type OpenAICodexUsage, VIEW_IMAGE_TOOL_NAME, apply, assertNoOpenAICodexProviderConflict, diagnoseOpenAICodex, inject, installOpenAICodexSearchEvent, loginOpenAICodex, logoutOpenAICodex, mapOpenAICodexSearchResponse, name, openAICodexAuthPath, openAICodexAuthStatus, openAICodexConflictMessage, parseOpenAICodexUsage, readOpenAICodexRateLimits, recordOpenAICodexSearchRequest };
+export { Config, DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE, DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_CODEX_SEARCH_MODE, DEFAULT_OPENAI_CODEX_SEARCH_MODEL, DEFAULT_OPENAI_CODEX_SETTINGS, OPENAI_CODEX_AUTH_FILENAME, OPENAI_CODEX_BASE_URL, OPENAI_CODEX_PROVIDER, OPENAI_CODEX_SEARCH_MODEL_REQUEST_EVENT, OPENAI_CODEX_SEARCH_PROVIDER, OPENAI_CODEX_SEARCH_URL, OPENAI_CODEX_SETTINGS_NAMESPACE, OPENAI_CODEX_SETTINGS_NS, OPENAI_CODEX_USAGE_URL, type OpenAICodexAuthStatus, OpenAICodexCredentialStore, type OpenAICodexCredits, type OpenAICodexDiagnosticOptions, type OpenAICodexDiagnosticReport, type OpenAICodexIndividualLimit, type OpenAICodexRateLimit, type OpenAICodexRateLimitWindow, type OpenAICodexSearchContextSize, type OpenAICodexSearchMode, OpenAICodexSearchProvider, type OpenAICodexSearchProviderOptions, type OpenAICodexSearchRequestRecord, type OpenAICodexSettingsConfig, type OpenAICodexUsage, VIEW_IMAGE_TOOL_NAME, apply, assertNoOpenAICodexProviderConflict, decodeOpenAICodexSettings, diagnoseOpenAICodex, inject, installOpenAICodexSearchEvent, loginOpenAICodex, logoutOpenAICodex, mapOpenAICodexSearchResponse, name, openAICodexAuthPath, openAICodexAuthStatus, openAICodexConflictMessage, parseOpenAICodexUsage, readOpenAICodexRateLimits, recordOpenAICodexSearchRequest, resolveOpenAICodexSettings };

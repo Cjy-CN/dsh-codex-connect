@@ -2,9 +2,12 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import { OpenAICodexSettings } from '../src/client/OpenAICodexSettings.tsx'
 import { en } from '../src/client/locales.ts'
 import type { OpenAICodexSettingsKey } from '../src/client/locales.ts'
+import { DEFAULT_OPENAI_CODEX_SETTINGS } from '../src/settings-contract.ts'
+import type { OpenAICodexSettingsConfig } from '../src/settings-contract.ts'
 import {
   OPENAI_CODEX_AUTH_LOGIN_PATH,
   OPENAI_CODEX_AUTH_LOGOUT_PATH,
@@ -36,6 +39,45 @@ function popupFixture(): { popup: Window; close: ReturnType<typeof vi.fn>; repla
     popup: { close, opener: window, location: { replace } } as unknown as Window,
     close,
     replace,
+  }
+}
+
+function settingsScopeFixture(writable = true): {
+  scope: SettingsScope<OpenAICodexSettingsConfig>
+  set: ReturnType<typeof vi.fn>
+} {
+  let snapshot: SettingsScopeSnapshot<OpenAICodexSettingsConfig> = {
+    status: 'ready',
+    value: { ...DEFAULT_OPENAI_CODEX_SETTINGS },
+    base: { ...DEFAULT_OPENAI_CODEX_SETTINGS },
+    user: undefined,
+    revision: 0,
+    writable,
+    mode: 'host',
+  }
+  const listeners = new Set<() => void>()
+  const set = vi.fn(async (field: string, value: unknown) => {
+    const current = snapshot.value
+    if (current === undefined || !(field in current)) throw new Error(`unknown field ${field}`)
+    snapshot = {
+      ...snapshot,
+      value: { ...current, [field]: value },
+      user: { ...typeof snapshot.user === 'object' && snapshot.user !== null ? snapshot.user : {}, [field]: value },
+      revision: (snapshot.revision ?? 0) + 1,
+    }
+    for (const listener of listeners) listener()
+  })
+  return {
+    set,
+    scope: {
+      getSnapshot: () => snapshot,
+      subscribe(listener) {
+        listeners.add(listener)
+        return () => { listeners.delete(listener) }
+      },
+      set,
+      unset: vi.fn(async () => undefined),
+    },
   }
 }
 
@@ -160,5 +202,48 @@ describe('OpenAI Codex Plugin configuration card', () => {
 
     expect(await screen.findByText('Could not sign out')).toBeTruthy()
     expect((screen.getByRole('button', { name: en.loginAgain }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('stages, discards, and saves optional capability settings in the same card', async () => {
+    const fetchMock = vi.fn(async (): Promise<Response> => json({ status: 'signed-out' }))
+    const { scope, set } = settingsScopeFixture()
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<OpenAICodexSettings t={t} configScope={scope} embedded />)
+    const enableSearch = await screen.findByRole('checkbox', { name: /Enable Codex search provider/u }) as HTMLInputElement
+    const model = screen.getByRole('textbox', { name: en.searchModel }) as HTMLInputElement
+    expect(enableSearch.checked).toBe(false)
+    expect(model.disabled).toBe(true)
+
+    fireEvent.click(enableSearch)
+    expect(model.disabled).toBe(false)
+    fireEvent.change(model, { target: { value: 'temporary-model' } })
+    fireEvent.click(screen.getByRole('button', { name: en.discard }))
+    expect(enableSearch.checked).toBe(false)
+    expect(model.value).toBe(DEFAULT_OPENAI_CODEX_SETTINGS.searchModel)
+
+    fireEvent.click(enableSearch)
+    fireEvent.change(model, { target: { value: 'gpt-search-custom' } })
+    fireEvent.change(screen.getByRole('combobox', { name: en.searchMode }), { target: { value: 'live' } })
+    fireEvent.change(screen.getByRole('spinbutton', { name: en.searchMaxOutputTokens }), { target: { value: '2048' } })
+    fireEvent.click(screen.getByRole('button', { name: en.save }))
+
+    expect(await screen.findByText(en.settingsSaved)).toBeTruthy()
+    expect(set).toHaveBeenCalledWith('enableSearch', true)
+    expect(set).toHaveBeenCalledWith('searchModel', 'gpt-search-custom')
+    expect(set).toHaveBeenCalledWith('searchMode', 'live')
+    expect(set).toHaveBeenCalledWith('searchMaxOutputTokens', 2048)
+  })
+
+  it('disables capability edits when the Host settings document is read-only', async () => {
+    const fetchMock = vi.fn(async (): Promise<Response> => json({ status: 'signed-out' }))
+    const { scope } = settingsScopeFixture(false)
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<OpenAICodexSettings t={t} configScope={scope} embedded />)
+
+    expect(await screen.findByText(en.settingsReadOnly)).toBeTruthy()
+    expect(document.querySelector('fieldset')?.disabled).toBe(true)
+    expect((screen.getByRole('button', { name: en.save }) as HTMLButtonElement).disabled).toBe(true)
   })
 })

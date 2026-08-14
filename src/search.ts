@@ -15,6 +15,21 @@ import type {
 } from '@deepseek-ai/dsh-web'
 import type { OpenAICodexCredentialStore } from './store.ts'
 import { OPENAI_CODEX_PROVIDER } from './store.ts'
+import {
+  DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE,
+  DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
+  DEFAULT_OPENAI_CODEX_SEARCH_MODE,
+  DEFAULT_OPENAI_CODEX_SEARCH_MODEL,
+} from './settings-contract.ts'
+import type { OpenAICodexSearchContextSize, OpenAICodexSearchMode } from './settings-contract.ts'
+
+export {
+  DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE,
+  DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
+  DEFAULT_OPENAI_CODEX_SEARCH_MODE,
+  DEFAULT_OPENAI_CODEX_SEARCH_MODEL,
+} from './settings-contract.ts'
+export type { OpenAICodexSearchContextSize, OpenAICodexSearchMode } from './settings-contract.ts'
 
 /** Stable dsh web-provider id selected by the bundle patch. */
 export const OPENAI_CODEX_SEARCH_PROVIDER = OPENAI_CODEX_PROVIDER
@@ -24,24 +39,6 @@ export const OPENAI_CODEX_BASE_URL = 'https://chatgpt.com/backend-api/codex'
 
 /** Standalone search endpoint used by the official Codex client. */
 export const OPENAI_CODEX_SEARCH_URL = `${OPENAI_CODEX_BASE_URL}/alpha/search`
-
-/** Default model used by the standalone search endpoint. */
-export const DEFAULT_OPENAI_CODEX_SEARCH_MODEL = 'gpt-5.6-sol'
-
-/** Default search mode, matching the official local Codex client. */
-export const DEFAULT_OPENAI_CODEX_SEARCH_MODE = 'cached'
-
-/** Default provider search-context size. */
-export const DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE = 'medium'
-
-/** Default output budget for the standalone search response. */
-export const DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS = 10_000
-
-/** Search modes accepted by the official standalone endpoint. */
-export type OpenAICodexSearchMode = 'cached' | 'indexed' | 'live'
-
-/** Provider search-context sizes accepted by the standalone endpoint. */
-export type OpenAICodexSearchContextSize = 'low' | 'medium' | 'high'
 
 interface SearchRequestBody {
   readonly id: string
