@@ -11,7 +11,7 @@
 ## 安装
 
 ```sh
-dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.2'
+dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.3'
 dsh web
 ```
 

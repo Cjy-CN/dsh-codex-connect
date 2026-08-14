@@ -11,6 +11,9 @@ if (packageJson.author !== 'Frank Song') failures.push('package author must iden
 if (!Array.isArray(packageJson.contributors) || !packageJson.contributors.includes('Yan-Zero (original dsh-codex author)')) {
   failures.push('package contributors must retain upstream authorship')
 }
+for (const keyword of ['dsh-plugin', 'deepseek-harness', 'openai-codex', 'chatgpt-oauth']) {
+  if (!Array.isArray(packageJson.keywords) || !packageJson.keywords.includes(keyword)) failures.push(`package keywords must include ${keyword}`)
+}
 
 const productFiles = [
   'package.json',
