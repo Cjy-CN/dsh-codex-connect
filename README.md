@@ -11,7 +11,7 @@ Installation is additive. The bundle does not replace the current default model 
 ## Install
 
 ```sh
-dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.1'
+dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.2'
 dsh web
 ```
 
@@ -103,7 +103,7 @@ pnpm run check
 
 ## Legal / Acknowledgements
 
-Copyright 2026 Yan-Zero. This project is derived from [Yan-Zero/dsh-codex](https://github.com/Yan-Zero/dsh-codex) and retains its Apache-2.0 license and attribution. Modifications for `dsh-codex-connect` are documented in [NOTICE](NOTICE). This project is not affiliated with or endorsed by OpenAI, ChatGPT, Codex, DeepSeek, or DeepSeek Harness.
+Copyright 2026 Frank Song for the modifications and additional work in Codex Connect. This project includes software derived from [Yan-Zero/dsh-codex](https://github.com/Yan-Zero/dsh-codex); Copyright 2026 Yan-Zero is retained for the upstream material. Both are distributed under Apache-2.0, with details in [NOTICE](NOTICE). This project is not affiliated with or endorsed by OpenAI, ChatGPT, Codex, DeepSeek, or DeepSeek Harness.
 
 ## License
 

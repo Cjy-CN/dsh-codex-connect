@@ -11,7 +11,7 @@
 ## 安装
 
 ```sh
-dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.1'
+dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.2'
 dsh web
 ```
 
@@ -86,7 +86,7 @@ dsh plugin --profile web exec dsh-codex-connect doctor
 
 ## 法律与致谢
 
-Copyright 2026 Yan-Zero。本项目派生自 [Yan-Zero/dsh-codex](https://github.com/Yan-Zero/dsh-codex)，保留 Apache-2.0 许可证和原作者归属；本分支修改见 [NOTICE](NOTICE)。本项目与 OpenAI、ChatGPT、Codex、DeepSeek 或 DeepSeek Harness 不存在隶属关系，也未获得其背书。
+Codex Connect 的修改与新增工作 Copyright 2026 Frank Song。本项目包含派生自 [Yan-Zero/dsh-codex](https://github.com/Yan-Zero/dsh-codex) 的软件；上游内容继续保留 Copyright 2026 Yan-Zero。两部分均按 Apache-2.0 发布，详情见 [NOTICE](NOTICE)。本项目与 OpenAI、ChatGPT、Codex、DeepSeek 或 DeepSeek Harness 不存在隶属关系，也未获得其背书。
 
 ## 许可证
 

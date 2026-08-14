@@ -7,6 +7,10 @@ if (packageJson.name !== 'dsh-codex-connect') failures.push('package name must b
 if (!/^0\.1\.0-alpha\.[1-9]\d*(?:\.\d+)?$/u.test(packageJson.version)) failures.push('package version must be a 0.1.0 alpha release')
 if (packageJson.displayName !== 'Codex Connect') failures.push('displayName mismatch')
 if (packageJson.description !== 'ChatGPT OAuth and Codex models for DeepSeek Harness.') failures.push('description mismatch')
+if (packageJson.author !== 'Frank Song') failures.push('package author must identify the Codex Connect author')
+if (!Array.isArray(packageJson.contributors) || !packageJson.contributors.includes('Yan-Zero (original dsh-codex author)')) {
+  failures.push('package contributors must retain upstream authorship')
+}
 
 const productFiles = [
   'package.json',
@@ -14,6 +18,8 @@ const productFiles = [
   'README.zh.md',
   'INSTALL.md',
   'MIGRATION.md',
+  'NOTICE',
+  'LICENSE',
   'docs/design.md',
   'docs/design.zh.md',
 ]
@@ -30,6 +36,13 @@ const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
 const fullDescription = 'Connect your ChatGPT subscription to DeepSeek Harness with OAuth, user-controlled defaults, Harness-native approvals, diagnostics, and reliable session recovery.'
 if (!readme.startsWith(`# Codex Connect\n\nEnglish | [中文](README.zh.md)\n\n${fullDescription}\n`)) {
   failures.push('README opening description mismatch')
+}
+
+const notice = await readFile(new URL('../NOTICE', import.meta.url), 'utf8')
+const license = await readFile(new URL('../LICENSE', import.meta.url), 'utf8')
+for (const [filename, text] of [['NOTICE', notice], ['LICENSE', license]]) {
+  if (!text.includes('Copyright 2026 Frank Song')) failures.push(`${filename} must state Codex Connect copyright`)
+  if (!text.includes('Copyright 2026 Yan-Zero')) failures.push(`${filename} must retain upstream copyright`)
 }
 
 const patch = await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
