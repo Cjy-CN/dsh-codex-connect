@@ -11,11 +11,11 @@ Installation is additive. The bundle does not replace the current default model 
 ## Install
 
 ```sh
-dsh plugin --profile web add dsh-codex-connect
+dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.1'
 dsh web
 ```
 
-From a DeepSeek Harness source checkout, prefix commands with `pnpm`. For a local checkout, install `link:/absolute/path/to/dsh-codex-connect`.
+This installs the current alpha directly from its tagged GitHub release using Harness's supported Git package path. From a DeepSeek Harness source checkout, prefix commands with `pnpm`. For a local checkout, install `link:/absolute/path/to/dsh-codex-connect`.
 
 Sign in from **Settings → Plugins → Plugin configuration → Codex Connect → Sign in with ChatGPT**, or use the CLI:
 

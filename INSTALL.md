@@ -16,7 +16,7 @@ Install `dsh-codex-connect` into one requested DeepSeek Harness profile without 
 2. Install the package:
 
    ```sh
-   dsh plugin --profile web add dsh-codex-connect
+   dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.1'
    ```
 
 3. Run `dsh --profile web --dump-config` and require exactly one `llm-openai-codex` row loading `dsh-codex-connect`.
@@ -61,7 +61,7 @@ Do not add the last two rows unless the user separately requested those routing 
 ## Update and removal
 
 ```sh
-dsh plugin --profile web update dsh-codex-connect
+dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#<new-release-tag>'
 dsh plugin --profile web remove dsh-codex-connect
 ```
 

@@ -11,11 +11,11 @@
 ## 安装
 
 ```sh
-dsh plugin --profile web add dsh-codex-connect
+dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.1'
 dsh web
 ```
 
-在 DeepSeek Harness 源码 checkout 中运行时，在命令前加 `pnpm`。本地开发可安装 `link:/absolute/path/to/dsh-codex-connect`。
+该命令通过 Harness 支持的 Git package 方式，直接安装 GitHub 上带版本标签的当前 Alpha。在 DeepSeek Harness 源码 checkout 中运行时，在命令前加 `pnpm`。本地开发可安装 `link:/absolute/path/to/dsh-codex-connect`。
 
 可在 **设置 → 插件 → 插件配置 → Codex Connect → 使用 ChatGPT 登录**，也可使用 CLI：
 
