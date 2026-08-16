@@ -10,6 +10,32 @@ export const OPENAI_CODEX_USAGE_URL = 'https://chatgpt.com/backend-api/wham/usag
 
 const USAGE_REQUEST_TIMEOUT_MS = 15_000
 
+/** Stable public discriminant for an expired or revoked Codex OAuth session. */
+export const OPENAI_CODEX_REAUTH_REQUIRED_CODE = 'OPENAI_CODEX_REAUTH_REQUIRED' as const
+
+/** Fixed, secret-free message for a browser-facing reauthorization prompt. */
+export const OPENAI_CODEX_REAUTH_REQUIRED_MESSAGE = 'OpenAI Codex authorization must be renewed'
+
+/**
+ * Raised when the usage endpoint rejects the current OAuth session.
+ *
+ * The error intentionally carries no response, credential, or account data so
+ * callers can safely pass its fixed message across the Web boundary.
+ */
+export class OpenAICodexReauthRequiredError extends Error {
+  readonly code = OPENAI_CODEX_REAUTH_REQUIRED_CODE
+
+  constructor() {
+    super(OPENAI_CODEX_REAUTH_REQUIRED_MESSAGE)
+    this.name = 'OpenAICodexReauthRequiredError'
+  }
+}
+
+/** Identify the dedicated reauthorization failure without comparing messages. */
+export function isOpenAICodexReauthRequiredError(error: unknown): error is OpenAICodexReauthRequiredError {
+  return error instanceof OpenAICodexReauthRequiredError
+}
+
 /** One quota window expressed as remaining capacity for direct UI rendering. */
 export interface OpenAICodexRateLimitWindow {
   /** Percent still available in this window. */
@@ -196,9 +222,10 @@ export async function readOpenAICodexRateLimits(
     signal: AbortSignal.timeout(USAGE_REQUEST_TIMEOUT_MS),
   })
   if (!response.ok) {
-    throw new Error(response.status === 401 || response.status === 403
-      ? 'OpenAI Codex sign-in needs to be renewed'
-      : `OpenAI Codex usage request failed with HTTP ${response.status}`)
+    if (response.status === 401 || response.status === 403) {
+      throw new OpenAICodexReauthRequiredError()
+    }
+    throw new Error(`OpenAI Codex usage request failed with HTTP ${response.status}`)
   }
   let value: unknown
   try {

@@ -13,8 +13,12 @@ import {
   openAICodexAuthPath,
   openAICodexAuthStatus,
 } from './index.ts'
+import { CODEX_CONNECT_VERSION } from './doctor.ts'
 
 type Action = 'doctor' | 'login' | 'logout' | 'status'
+type DiagnosticReport = Awaited<ReturnType<typeof diagnoseOpenAICodex>>
+
+const JSON_SCHEMA_VERSION = 1
 
 /** Open one trusted HTTPS URL with the platform browser, best effort. */
 function openBrowser(rawUrl: string): void {
@@ -89,15 +93,43 @@ async function answerPrompt(
 /** Print the standalone command help. */
 function printHelp(): void {
   process.stdout.write([
-    'Usage: dsh-codex-connect <doctor|login|logout|status> [--device-code]',
+    'Usage: dsh-codex-connect <doctor|login|logout|status> [--device-code|--json]',
     '',
     '  doctor         inspect secret-free runtime and OAuth file metadata',
     '  login          sign in with a separate ChatGPT OAuth session',
     '  logout         remove the dsh credential without changing ~/.codex',
     '  status         report non-secret dsh credential state',
     '  --device-code  use headless device-code login (login only)',
+    '  --json         emit one secret-free JSON document (doctor/status only)',
     '',
   ].join('\n'))
+}
+
+function doctorExitCode(report: DiagnosticReport): number {
+  return report.credentialFile.state === 'permissions-too-broad'
+    || report.credentialFile.state === 'not-a-regular-file'
+    || report.credentialFile.state === 'unreadable-metadata' ? 1 : 0
+}
+
+/** Project the diagnostic report without its absolute credential pathname. */
+function doctorJson(report: DiagnosticReport): Record<string, unknown> {
+  return {
+    schemaVersion: JSON_SCHEMA_VERSION,
+    package: report.package,
+    version: report.version,
+    node: report.node,
+    credentialFile: {
+      state: report.credentialFile.state,
+      ...report.credentialFile.mode === undefined ? {} : { mode: report.credentialFile.mode },
+    },
+    capabilities: report.capabilities,
+    providerConflict: report.providerConflict,
+    hints: report.hints,
+  }
+}
+
+function printJson(value: unknown): void {
+  process.stdout.write(`${JSON.stringify(value)}\n`)
 }
 
 /** Execute one boot-free credential command. */
@@ -112,8 +144,12 @@ export async function run(argv: readonly string[]): Promise<number> {
     return 1
   }
   const action: Action = rawAction
-  const unknown = flags.filter(flag => flag !== '--device-code')
-  if (unknown.length > 0 || (flags.includes('--device-code') && action !== 'login')) {
+  const deviceCode = flags.includes('--device-code')
+  const jsonOutput = flags.includes('--json')
+  const unknown = flags.filter(flag => flag !== '--device-code' && flag !== '--json')
+  if (unknown.length > 0
+    || (deviceCode && action !== 'login')
+    || (jsonOutput && (action === 'login' || action === 'logout' || deviceCode))) {
     process.stderr.write(`dsh-codex-connect: invalid options for ${action}: ${flags.join(' ')}\n`)
     return 1
   }
@@ -121,6 +157,10 @@ export async function run(argv: readonly string[]): Promise<number> {
     switch (action) {
       case 'doctor': {
         const report = await diagnoseOpenAICodex()
+        if (jsonOutput) {
+          printJson(doctorJson(report))
+          return doctorExitCode(report)
+        }
         process.stdout.write([
           `Codex Connect ${report.version} on ${report.node}`,
           `OAuth file metadata: ${report.credentialFile.state} (${report.credentialFile.path})`,
@@ -129,12 +169,19 @@ export async function run(argv: readonly string[]): Promise<number> {
           ...report.hints.map(hint => `Hint: ${hint}`),
           '',
         ].join('\n'))
-        return report.credentialFile.state === 'permissions-too-broad'
-          || report.credentialFile.state === 'not-a-regular-file'
-          || report.credentialFile.state === 'unreadable-metadata' ? 1 : 0
+        return doctorExitCode(report)
       }
       case 'status': {
         const status = await openAICodexAuthStatus()
+        if (jsonOutput) {
+          printJson({
+            schemaVersion: JSON_SCHEMA_VERSION,
+            package: 'dsh-codex-connect',
+            version: CODEX_CONNECT_VERSION,
+            status: status.authenticated ? 'signed-in' : 'signed-out',
+          })
+          return status.authenticated ? 0 : 1
+        }
         if (!status.authenticated) {
           process.stdout.write('Codex Connect: signed out\n')
           return 1
@@ -154,7 +201,7 @@ export async function run(argv: readonly string[]): Promise<number> {
         const readline = createInterface({ input: process.stdin, output: process.stdout })
         try {
           await loginOpenAICodex({
-            prompt: prompt => answerPrompt(prompt, flags.includes('--device-code'), (text, options) => readline.question(text, options)),
+            prompt: prompt => answerPrompt(prompt, deviceCode, (text, options) => readline.question(text, options)),
             notify: event => notify(event, true),
           })
         } finally {

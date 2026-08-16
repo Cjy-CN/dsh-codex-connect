@@ -6,6 +6,8 @@ import type { OAuthCredential } from '@earendil-works/pi-ai'
 import { OpenAICodexWebAuth } from '../src/auth-routes.ts'
 import {
   OPENAI_CODEX_USAGE_URL,
+  isOpenAICodexReauthRequiredError,
+  OpenAICodexReauthRequiredError,
   parseOpenAICodexUsage,
   readOpenAICodexRateLimits,
 } from '../src/usage.ts'
@@ -125,6 +127,34 @@ describe('OpenAI Codex usage', () => {
         'cache-control': 'no-store',
       },
     })
+  })
+
+  it.each([401, 403])('throws a secret-free reauthorization error for usage HTTP %s', async status => {
+    vi.stubGlobal('fetch', vi.fn(async () => response({
+      error: 'fixture-response-secret',
+      token: 'fixture-response-token',
+    }, status)))
+
+    let caught: unknown
+    try {
+      await readOpenAICodexRateLimits(await authenticatedStore())
+    } catch (error: unknown) {
+      caught = error
+    }
+
+    expect(caught).toBeInstanceOf(OpenAICodexReauthRequiredError)
+    expect(isOpenAICodexReauthRequiredError(caught)).toBe(true)
+    expect(caught).toMatchObject({ code: 'OPENAI_CODEX_REAUTH_REQUIRED' })
+    for (const secret of [
+      'access-secret',
+      'refresh-secret',
+      'account-1',
+      'fixture-response-secret',
+      'fixture-response-token',
+    ]) {
+      expect(String(caught)).not.toContain(secret)
+      expect(JSON.stringify(caught)).not.toContain(secret)
+    }
   })
 
   it('keeps a signed-in account usable when quota metadata is unavailable', async () => {

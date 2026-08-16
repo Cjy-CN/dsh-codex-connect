@@ -8,6 +8,10 @@ import {
   registerOpenAICodexAuthRoutes,
 } from '../src/auth-routes.ts'
 import type { OpenAICodexCredentialStore } from '../src/store.ts'
+import {
+  OPENAI_CODEX_REAUTH_REQUIRED_MESSAGE,
+  OpenAICodexReauthRequiredError,
+} from '../src/usage.ts'
 
 const mocked = vi.hoisted(() => ({
   login: vi.fn(),
@@ -22,7 +26,8 @@ vi.mock('../src/auth.ts', () => ({
   openAICodexAuthStatus: mocked.status,
 }))
 
-vi.mock('../src/usage.ts', () => ({
+vi.mock('../src/usage.ts', async importOriginal => ({
+  ...await importOriginal<typeof import('../src/usage.ts')>(),
   readOpenAICodexRateLimits: mocked.usage,
 }))
 
@@ -252,5 +257,31 @@ describe('OpenAI Codex Web OAuth boundary', () => {
     await expect(auth.signIn()).rejects.toThrow(/did not provide an authorization URL/u)
     expect(observedSignal?.aborted).toBe(true)
     await auth.dispose()
+  })
+
+  it('reports reauth-required without logging out or starting OAuth', async () => {
+    mocked.status.mockResolvedValue({ authenticated: true })
+    mocked.usage.mockRejectedValue(new OpenAICodexReauthRequiredError())
+    const auth = new OpenAICodexWebAuth(store)
+
+    await expect(auth.status()).resolves.toEqual({
+      status: 'reauth-required',
+      message: OPENAI_CODEX_REAUTH_REQUIRED_MESSAGE,
+    })
+    expect(mocked.logout).not.toHaveBeenCalled()
+    expect(mocked.login).not.toHaveBeenCalled()
+  })
+
+  it('keeps signed-in quotaError fallback for temporary usage failures', async () => {
+    mocked.status.mockResolvedValue({ authenticated: true })
+    mocked.usage.mockRejectedValue(new Error('OpenAI Codex usage request failed with HTTP 503'))
+    const auth = new OpenAICodexWebAuth(store)
+
+    await expect(auth.status()).resolves.toEqual({
+      status: 'signed-in',
+      usage: { rateLimits: [] },
+      quotaError: 'OpenAI Codex usage request failed with HTTP 503',
+    })
+    expect(mocked.logout).not.toHaveBeenCalled()
   })
 })

@@ -41,7 +41,7 @@ dsh plugin --profile web add dsh-codex-connect@alpha
 dsh web
 ```
 
-如需精确固定此版本，使用 `dsh plugin --profile web add dsh-codex-connect@0.1.0-alpha.4.5`。若 npm 不可用，可使用 GitHub tag 兜底：`dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.5'`。在 DeepSeek Harness 源码 checkout 中运行时，在命令前加 `pnpm`。本地开发可安装 `link:/absolute/path/to/dsh-codex-connect`。
+在 `0.1.0-alpha.4.6` 发布后，如需精确固定此版本，使用 `dsh plugin --profile web add dsh-codex-connect@0.1.0-alpha.4.6`。在对应 GitHub prerelease 已创建且 npm 不可用时，可使用 `dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.6'`。在 DeepSeek Harness 源码 checkout 中运行时，在命令前加 `pnpm`。本地开发可安装 `link:/absolute/path/to/dsh-codex-connect`。
 
 可在 **设置 → 插件 → 插件配置 → Codex Connect → 使用 ChatGPT 登录**，也可使用 CLI：
 
@@ -52,6 +52,8 @@ dsh plugin --profile web exec dsh-codex-connect doctor
 ```
 
 `doctor` 只读取进程与文件系统元数据，不打开 OAuth 文件，也不会输出 token、授权 URL、授权码、账户 ID 或认证文件内容。
+
+供脚本使用时，`doctor --json` 只输出一条可解析的非敏感 JSON，包含 schema version 1、包/版本/Node 信息、认证文件状态与安全 mode、能力、冲突状态和提示；它省略认证文件绝对路径以及 OAuth、账户和过期时间信息。`status --json` 只输出 signed-in 或 signed-out 状态及包元数据。`doctor --json` 只读取元数据；`status --json` 仅为判断登录态读取认证文件，但两者都不会输出认证文件内容或启动 OAuth；signed-out 状态仍返回退出码 1。
 
 ## 显式配置
 

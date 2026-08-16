@@ -1,5 +1,26 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocked = vi.hoisted(() => ({
+  diagnose: vi.fn(),
+  login: vi.fn(),
+  logout: vi.fn(),
+  authPath: vi.fn(() => '/Users/fixture/.dsh/openai-codex-auth.json'),
+  authStatus: vi.fn(),
+}))
+
+vi.mock('../src/index.ts', () => ({
+  diagnoseOpenAICodex: mocked.diagnose,
+  loginOpenAICodex: mocked.login,
+  logoutOpenAICodex: mocked.logout,
+  openAICodexAuthPath: mocked.authPath,
+  openAICodexAuthStatus: mocked.authStatus,
+}))
+
 import { run } from '../src/bin.ts'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -26,5 +47,114 @@ describe('dsh-codex-connect CLI', () => {
     await expect(run(['doctor', '--device-code'])).resolves.toBe(1)
     expect(output).toMatch(/^dsh-codex-connect:/)
     expect(output).not.toContain('dsh-openai-codex:')
+  })
+
+  it('emits one secret-free JSON document for doctor', async () => {
+    const credentialPath = '/Users/fixture/.dsh/openai-codex-auth.json'
+    mocked.diagnose.mockResolvedValue({
+      package: 'dsh-codex-connect',
+      version: '0.1.0-alpha.4.6',
+      node: 'v22.19.0',
+      credentialFile: { path: credentialPath, state: 'owner-only', mode: '600' },
+      capabilities: {
+        modelProvider: true,
+        search: false,
+        imageTool: false,
+        changesHarnessDefaultModel: false,
+        changesHarnessSearchRoute: false,
+      },
+      providerConflict: false,
+      hints: ['Safe diagnostic hint'],
+    })
+    let output = ''
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array) => {
+      output += String(chunk)
+      return true
+    })
+
+    await expect(run(['doctor', '--json'])).resolves.toBe(0)
+    const parsed: unknown = JSON.parse(output)
+    expect(parsed).toMatchObject({
+      schemaVersion: 1,
+      package: 'dsh-codex-connect',
+      version: '0.1.0-alpha.4.6',
+      node: 'v22.19.0',
+      credentialFile: { state: 'owner-only', mode: '600' },
+      capabilities: {
+        modelProvider: true,
+        search: false,
+        imageTool: false,
+        changesHarnessDefaultModel: false,
+        changesHarnessSearchRoute: false,
+      },
+      providerConflict: false,
+      hints: ['Safe diagnostic hint'],
+    })
+    expect(parsed).not.toHaveProperty('credentialFile.path')
+    for (const secret of [
+      credentialPath,
+      'https://auth.openai.com/oauth/authorize?fixture=secret',
+      'fixture-access-token',
+      'fixture-refresh-token',
+      'fixture-account-id',
+      '2099-01-01T00:00:00.000Z',
+    ]) {
+      expect(output).not.toContain(secret)
+    }
+  })
+
+  it.each([
+    [true, 'signed-in', 0],
+    [false, 'signed-out', 1],
+  ] as const)('emits secret-free JSON status for %s authentication', async (authenticated, expectedStatus, expectedCode) => {
+    mocked.authStatus.mockResolvedValue({
+      authenticated,
+      expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+      accountId: 'fixture-account-id',
+      access: 'fixture-access-token',
+      refresh: 'fixture-refresh-token',
+    })
+    let output = ''
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array) => {
+      output += String(chunk)
+      return true
+    })
+
+    await expect(run(['status', '--json'])).resolves.toBe(expectedCode)
+    const parsed: unknown = JSON.parse(output)
+    expect(parsed).toMatchObject({
+      schemaVersion: 1,
+      package: 'dsh-codex-connect',
+      status: expectedStatus,
+    })
+    expect(parsed).not.toHaveProperty('expiresAt')
+    expect(parsed).not.toHaveProperty('accountId')
+    expect(parsed).not.toHaveProperty('access')
+    expect(parsed).not.toHaveProperty('refresh')
+    for (const secret of [
+      'fixture-account-id',
+      'fixture-access-token',
+      'fixture-refresh-token',
+      '2099-01-01T00:00:00.000Z',
+    ]) {
+      expect(output).not.toContain(secret)
+    }
+  })
+
+  it.each([
+    ['login', '--json'],
+    ['logout', '--json'],
+    ['doctor', '--device-code'],
+    ['status', '--device-code'],
+    ['login', '--device-code', '--json'],
+  ] as const)('rejects unsupported flags for %s', async (...argv) => {
+    let output = ''
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk: string | Uint8Array) => {
+      output += String(chunk)
+      return true
+    })
+
+    await expect(run(argv)).resolves.toBe(1)
+    expect(output).toMatch(/^dsh-codex-connect: invalid options for /)
   })
 })

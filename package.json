@@ -2,7 +2,7 @@
   "name": "dsh-codex-connect",
   "displayName": "Codex Connect",
   "description": "ChatGPT OAuth and Codex models for DeepSeek Harness.",
-  "version": "0.1.0-alpha.4.5",
+  "version": "0.1.0-alpha.4.6",
   "author": "Frank Song",
   "contributors": [
     "Yan-Zero (original dsh-codex author)"
@@ -43,6 +43,7 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.client.json",
     "pack:check": "node scripts/check-pack.mjs",
+    "check:dsh-install": "node scripts/check-dsh-install.mjs",
     "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run pack:check",
     "prepublishOnly": "pnpm --config.minimum-release-age=0 run check"
   },

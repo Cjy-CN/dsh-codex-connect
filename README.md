@@ -41,7 +41,7 @@ dsh plugin --profile web add dsh-codex-connect@alpha
 dsh web
 ```
 
-To pin this release exactly, use `dsh plugin --profile web add dsh-codex-connect@0.1.0-alpha.4.5`. If npm is unavailable, use the GitHub tag fallback: `dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.5'`. From a DeepSeek Harness source checkout, prefix commands with `pnpm`. For a local checkout, install `link:/absolute/path/to/dsh-codex-connect`.
+After `0.1.0-alpha.4.6` is published, pin it exactly with `dsh plugin --profile web add dsh-codex-connect@0.1.0-alpha.4.6`. If npm is unavailable after its matching GitHub prerelease is created, use `dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.6'`. From a DeepSeek Harness source checkout, prefix commands with `pnpm`. For a local checkout, install `link:/absolute/path/to/dsh-codex-connect`.
 
 Sign in from **Settings → Plugins → Plugin configuration → Codex Connect → Sign in with ChatGPT**, or use the CLI:
 
@@ -52,6 +52,8 @@ dsh plugin --profile web exec dsh-codex-connect doctor
 ```
 
 The doctor command reads process and filesystem metadata only. It never opens the OAuth document or prints a token, authorization URL, authorization code, account id, or auth-file content.
+
+For automation, `doctor --json` emits exactly one secret-free JSON document with schema version 1, package/version/Node metadata, credential-file state and safe mode, capabilities, conflict status, and hints; it omits the absolute credential path and OAuth/account/expiry data. `status --json` emits only signed-in or signed-out state with package metadata. `doctor --json` reads metadata only; `status --json` reads the credential solely to determine sign-in state, but neither mode prints credential contents or starts OAuth. Signed-out status still exits with code 1.
 
 ## Explicit configuration
 

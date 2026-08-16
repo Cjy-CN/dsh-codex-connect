@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import { OpenAICodexSettings } from '../src/client/OpenAICodexSettings.tsx'
-import { en } from '../src/client/locales.ts'
+import { en, zh } from '../src/client/locales.ts'
 import type { OpenAICodexSettingsKey } from '../src/client/locales.ts'
 import { DEFAULT_OPENAI_CODEX_SETTINGS } from '../src/settings-contract.ts'
 import type { OpenAICodexSettingsConfig } from '../src/settings-contract.ts'
@@ -119,6 +119,36 @@ describe('OpenAI Codex Plugin configuration card', () => {
 
     expect(await screen.findByText('OAuth is unavailable')).toBeTruthy()
     expect(close).toHaveBeenCalledOnce()
+  })
+
+  it('renders reauth-required and reuses the sign-in flow without logout', async () => {
+    const reauthMessage = 'OpenAI Codex authorization must be renewed'
+    const fetchMock = vi.fn(async (input: string | URL | Request): Promise<Response> => {
+      const path = requestPath(input)
+      if (path === OPENAI_CODEX_AUTH_STATUS_PATH) {
+        return json({ status: 'reauth-required', message: reauthMessage })
+      }
+      expect(path).toBe(OPENAI_CODEX_AUTH_LOGIN_PATH)
+      return json({ url: 'https://auth.openai.com/authorize' })
+    })
+    const { popup, replace } = popupFixture()
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(window, 'open').mockReturnValue(popup)
+
+    render(<OpenAICodexSettings t={t} embedded />)
+    expect(await screen.findByText(reauthMessage)).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toContain(en.reauthRequired)
+    expect(screen.getByRole('button', { name: en.loginAgain })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: en.logout })).toBeNull()
+    expect(zh.reauthRequired).toBe('需要重新登录')
+
+    fireEvent.click(screen.getByRole('button', { name: en.loginAgain }))
+    await waitFor(() => { expect(replace).toHaveBeenCalledWith('https://auth.openai.com/authorize') })
+
+    const paths = fetchMock.mock.calls.map(([input]) => requestPath(input))
+    expect(paths).toContain(OPENAI_CODEX_AUTH_LOGIN_PATH)
+    expect(paths).not.toContain(OPENAI_CODEX_AUTH_LOGOUT_PATH)
+    expect(popup.opener).toBeNull()
   })
 
   it('renders signed-in quota semantics and signs out', async () => {

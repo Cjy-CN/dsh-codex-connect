@@ -6,7 +6,11 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { loginOpenAICodex, logoutOpenAICodex, openAICodexAuthStatus } from './auth.ts'
 import type { OpenAICodexCredentialStore } from './store.ts'
-import { readOpenAICodexRateLimits } from './usage.ts'
+import {
+  isOpenAICodexReauthRequiredError,
+  OPENAI_CODEX_REAUTH_REQUIRED_MESSAGE,
+  readOpenAICodexRateLimits,
+} from './usage.ts'
 import type { OpenAICodexUsage } from './usage.ts'
 import {
   OPENAI_CODEX_AUTH_LOGIN_PATH,
@@ -26,6 +30,7 @@ export const OPENAI_CODEX_AUTH_URL_TIMEOUT_MS = 30_000
 export type OpenAICodexWebAuthStatus =
   | { status: 'signed-out' }
   | { status: 'signing-in' }
+  | { status: 'reauth-required'; message: typeof OPENAI_CODEX_REAUTH_REQUIRED_MESSAGE }
   | { status: 'signed-in'; usage: OpenAICodexUsage; quotaError?: string }
   | { status: 'error'; message: string }
 
@@ -170,6 +175,9 @@ export class OpenAICodexWebAuth {
     try {
       return { status: 'signed-in', usage: await readOpenAICodexRateLimits(this.store) }
     } catch (error: unknown) {
+      if (isOpenAICodexReauthRequiredError(error)) {
+        return { status: 'reauth-required', message: OPENAI_CODEX_REAUTH_REQUIRED_MESSAGE }
+      }
       return { status: 'signed-in', usage: { rateLimits: [] }, quotaError: safeMessage(error) }
     }
   }

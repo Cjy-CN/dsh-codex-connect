@@ -20,6 +20,7 @@ type AccountStatus =
   | { status: 'loading' }
   | { status: 'signed-out' }
   | { status: 'signing-in' }
+  | { status: 'reauth-required'; message: string }
   | { status: 'signed-in'; usage: OpenAICodexUsage; quotaError?: string }
   | { status: 'error'; message: string }
 
@@ -162,7 +163,7 @@ function UsageLimits({ usage, quotaError, t }: {
 function dotStyle(status: AccountStatus['status']): CSSProperties {
   const color = status === 'signed-in'
     ? 'var(--dsw-alias-state-success-primary, #22a06b)'
-    : status === 'error'
+    : status === 'error' || status === 'reauth-required'
       ? 'var(--dsw-alias-state-error-primary, #d92d20)'
       : status === 'signing-in' || status === 'loading'
         ? 'var(--dsw-alias-brand-primary, #1677ff)'
@@ -274,6 +275,8 @@ export function OpenAICodexSettings({ t, configScope, embedded = false }: OpenAI
       ? t('loadingAccount')
       : status.status === 'signing-in'
       ? t('signingIn')
+      : status.status === 'reauth-required'
+        ? t('reauthRequired')
       : status.status === 'error'
         ? t('requestFailed')
         : t('signedOut')
@@ -300,9 +303,11 @@ export function OpenAICodexSettings({ t, configScope, embedded = false }: OpenAI
             ? null
             : status.status === 'signed-in'
             ? <button type="button" style={buttonStyle} disabled={busy} onClick={() => { void signOut() }}>{busy ? t('working') : t('logout')}</button>
-            : <button type="button" style={primaryButtonStyle} disabled={busy} onClick={() => { void signIn() }}>{busy ? t('working') : status.status === 'error' ? t('loginAgain') : t('login')}</button>}
+            : <button type="button" style={primaryButtonStyle} disabled={busy} onClick={() => { void signIn() }}>{busy ? t('working') : status.status === 'error' || status.status === 'reauth-required' ? t('loginAgain') : t('login')}</button>}
         </div>
-        {status.status === 'error' ? <p style={errorStyle}>{status.message}</p> : null}
+        {status.status === 'error' || status.status === 'reauth-required'
+          ? <p style={errorStyle}>{status.message}</p>
+          : null}
         {status.status === 'signed-in'
           ? <UsageLimits
               usage={status.usage}
