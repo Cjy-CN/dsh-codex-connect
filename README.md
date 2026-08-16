@@ -7,59 +7,87 @@ English | [中文](docs/README.zh.md)
 Connect your ChatGPT subscription to DeepSeek Harness with OAuth, user-controlled defaults, Harness-native approvals, diagnostics, and reliable session recovery.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/franksong2702/dsh-codex-connect/main/docs/assets/hero.jpg" alt="Codex Connect — ChatGPT OAuth for DeepSeek Harness" width="100%">
+  <img src="https://raw.githubusercontent.com/franksong2702/dsh-codex-connect/main/docs/assets/en/hero.jpg" alt="Codex Connect — ChatGPT OAuth for DeepSeek Harness" width="100%">
 </p>
 
 `dsh-codex-connect` adds the `openai-codex` model catalog and a separate ChatGPT OAuth login. Models run through Harness's normal LLM service, so streaming, tool calls, reasoning replay, compaction, filesystem controls, permission gates, and approval prompts remain Harness-owned. It does not turn a ChatGPT subscription into an OpenAI Platform API credential.
 
 Installation is additive. The bundle does not replace the current default model or search route, and its standalone search provider and `view_image` tool are disabled until explicitly enabled.
 
-## See it in Harness
+Every UI screenshot in this English guide is captured from the English-localized Harness UI. The [Chinese guide](docs/README.zh.md) uses a Chinese capture of the same state. Model and provider identifiers keep their canonical spelling in both languages.
 
-Sign in and manage the plugin from **Settings → Plugins → Plugin configuration → Codex Connect**.
+## Quick start (about five minutes)
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/franksong2702/dsh-codex-connect/main/docs/assets/oauth-status.jpg" alt="Codex Connect ChatGPT OAuth status inside Harness plugin configuration" width="720">
-</p>
+This guide uses the `web` profile. Replace `web` with the name of the Harness profile you already use. You need a working `dsh` installation; from a DeepSeek Harness source checkout, prefix the commands with `pnpm`.
 
-Optional Codex search and `view_image` capabilities remain explicit, profile-scoped choices:
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/franksong2702/dsh-codex-connect/main/docs/assets/plugin-configuration.jpg" alt="Codex Connect optional capability settings in DeepSeek Harness" width="720">
-</p>
-
-Codex models then appear in Harness's normal model picker alongside the existing providers:
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/franksong2702/dsh-codex-connect/main/docs/assets/model-selector.jpg" alt="OpenAI Codex models in the DeepSeek Harness model picker" width="320">
-</p>
-
-## Install
+### 1. Install the plugin into one profile
 
 ```sh
 dsh plugin --profile web add dsh-codex-connect@alpha
+```
+
+Expected result: the package is added to that profile. This does not change the profile's default model or global search route.
+
+To reproduce this release exactly, use `dsh plugin --profile web add dsh-codex-connect@0.1.0-alpha.4.6`. If npm is unavailable after the matching GitHub prerelease exists, use `dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.6'`. A local checkout can be installed as `link:/absolute/path/to/dsh-codex-connect`.
+
+### 2. Start Harness
+
+```sh
 dsh web
 ```
 
-After `0.1.0-alpha.4.6` is published, pin it exactly with `dsh plugin --profile web add dsh-codex-connect@0.1.0-alpha.4.6`. If npm is unavailable after its matching GitHub prerelease is created, use `dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.6'`. From a DeepSeek Harness source checkout, prefix commands with `pnpm`. For a local checkout, install `link:/absolute/path/to/dsh-codex-connect`.
+Expected result: the Harness web UI opens for the selected profile.
 
-Sign in from **Settings → Plugins → Plugin configuration → Codex Connect → Sign in with ChatGPT**, or use the CLI:
+### 3. Find the Codex Connect card
+
+Open **Settings → Plugins → Plugin configuration → Codex Connect**.
+
+Expected result: a fresh installation shows **Not signed in** and a **Sign in with ChatGPT** button. The card is where you later manage optional capabilities too.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/franksong2702/dsh-codex-connect/main/docs/assets/en/plugin-entry.jpg" alt="Collapsed English-localized Codex Connect entry under Harness plugin configuration" width="720">
+</p>
+
+### 4. Sign in with ChatGPT
+
+Click **Sign in with ChatGPT** and complete the browser approval yourself. Do not copy an authorization URL, code, token, or account identifier into an issue, log, or configuration file.
+
+Expected result: the account area changes to **Signed in**. The screenshot below is the successful end state after this step; it is not the initial sign-in screen.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/franksong2702/dsh-codex-connect/main/docs/assets/en/oauth-status.jpg" alt="English-localized Codex Connect signed-in state inside Harness plugin configuration" width="720">
+</p>
+
+### 5. Choose a model and make one safe check
+
+Open Harness's normal model picker and select an `openai-codex` model for the agent or session you are using. This selection is separate from writing the profile's default model or global search route.
+
+The picker groups the available entries under **OpenAI Codex**. Model identifiers such as `GPT-5.6 Luna` are canonical names, so they intentionally remain un-translated.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/franksong2702/dsh-codex-connect/main/docs/assets/en/model-selector.jpg" alt="OpenAI Codex model group in the English-localized DeepSeek Harness model picker" width="360">
+</p>
+
+To confirm the configured plugin row locally, run:
 
 ```sh
-dsh plugin --profile web exec dsh-codex-connect login
-dsh plugin --profile web exec dsh-codex-connect status
-dsh plugin --profile web exec dsh-codex-connect doctor
+dsh --profile web --dump-config
 ```
 
-The doctor command reads process and filesystem metadata only. It never opens the OAuth document or prints a token, authorization URL, authorization code, account id, or auth-file content.
+Expected result: the configuration has exactly one `llm-openai-codex` row. Keep this configuration dump local; it may include unrelated profile settings.
 
-For automation, `doctor --json` emits exactly one secret-free JSON document with schema version 1, package/version/Node metadata, credential-file state and safe mode, capabilities, conflict status, and hints; it omits the absolute credential path and OAuth/account/expiry data. `status --json` emits only signed-in or signed-out state with package metadata. `doctor --json` reads metadata only; `status --json` reads the credential solely to determine sign-in state, but neither mode prints credential contents or starts OAuth. Signed-out status still exits with code 1.
+For secret-free status and diagnostics that do not start OAuth, run:
 
-## Explicit configuration
+```sh
+dsh plugin --profile web exec dsh-codex-connect status --json
+dsh plugin --profile web exec dsh-codex-connect doctor --json
+```
 
-Open **Settings → Plugins → Plugin configuration → Codex Connect** to manage the ChatGPT account and optional capabilities in one card. Changes use Harness's revision-fenced settings store and apply live. **Save changes** affects only this plugin's capability section; it never selects a default model or global search route.
+Expected result: `status --json` reports `signed-in` and exits `0`, while `doctor --json` prints one secret-free JSON document. A signed-out `status --json` exits `1`; return to step 4 instead of treating that as a plugin failure.
 
-The installed bundle row remains the composition base and is intentionally inert beyond model-provider registration:
+## Optional capabilities (off by default)
+
+The installed bundle is intentionally inert beyond model-provider registration:
 
 ```yaml
 - id: llm-openai-codex
@@ -67,6 +95,21 @@ The installed bundle row remains the composition base and is intentionally inert
     enableSearch: false
     enableImageTool: false
 ```
+
+Open **Settings → Plugins → Plugin configuration → Codex Connect** to manage the account and these options in one card. **Save changes** affects only this plugin's capability section and applies live. It never selects a default model or a global search route.
+
+### Enable only the capability you intend to use
+
+- `enableSearch: true` registers Codex as an available search provider. It does not select the profile's global search route.
+- `enableImageTool: true` enables `view_image` for approved local reads and public-network image fetches on vision-capable models.
+
+The screenshot below is an example after someone has explicitly enabled capabilities. It does not show the fresh-install default. This English guide uses the English-localized capture; the Chinese guide shows the matching Chinese-localized state.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/franksong2702/dsh-codex-connect/main/docs/assets/en/plugin-configuration.jpg" alt="English-localized Codex Connect optional capability configuration after explicit opt-in" width="720">
+</p>
+
+### Change a default model or global search route separately
 
 To make a Codex model the default for new agents, add or update the separate Harness row yourself:
 
@@ -77,7 +120,7 @@ To make a Codex model the default for new agents, add or update the separate Har
     model: gpt-5.6-sol
 ```
 
-The card can enable Codex standalone search. Selecting it as the profile's global search provider remains a separate explicit choice:
+Selecting Codex as the profile's global search route is another explicit change:
 
 ```yaml
 - id: llm-openai-codex
@@ -91,8 +134,6 @@ The card can enable Codex standalone search. Selecting it as the profile's globa
     searchProvider: openai-codex
 ```
 
-To add the image-loading tool, set `enableImageTool: true` on `llm-openai-codex`. Browser paste/drop remains a Harness attachment feature and does not depend on this tool.
-
 | Field | Default | Values |
 |---|---:|---|
 | `enableSearch` | `false` | boolean |
@@ -102,13 +143,13 @@ To add the image-loading tool, set `enableImageTool: true` on `llm-openai-codex`
 | `searchContextSize` | `medium` | `low`, `medium`, `high` |
 | `searchMaxOutputTokens` | `10000` | positive integer |
 
-## Credentials, diagnostics, and conflicts
+## Reauthentication, diagnostics, and conflicts
 
-- OAuth is stored separately at `$DSH_HOME/.openai-codex-auth.json` (`~/.dsh` by default); `~/.codex/auth.json` is never copied or modified.
-- The parent directory and file are created with owner-only permissions where supported. Writes are atomic, and refresh writes use a cross-process file lock.
-- Status and diagnostics return only non-sensitive state. OAuth flow output is confined to an explicit `login` operation.
-- Browser OAuth routes accept only loopback clients and loopback Host/Origin values; sign-in fails closed when no valid HTTPS authorization URL arrives within 30 seconds.
-- A second adapter cannot own `openai-codex`. Startup fails with a focused hint when the legacy `dsh-codex` bundle or a manual provider row conflicts.
+- If the card says **Sign in again** or the server asks for reauthentication, click that action and complete the same safe browser flow. It preserves this plugin's capability settings and does not silently change your default model or global search route. Do not run `logout` just to renew a session.
+- `doctor` reads process and filesystem metadata only. `doctor --json` emits exactly one secret-free JSON document with schema version 1, package/version/Node metadata, credential-file state and safe mode, capabilities, conflict status, and hints. It omits the absolute credential path and OAuth, account, and expiry data.
+- `status --json` emits only signed-in or signed-out state with package metadata. `status --json` reads the credential only to determine sign-in state, but never prints credential contents or starts OAuth.
+- OAuth is stored separately at `$DSH_HOME/.openai-codex-auth.json` (`~/.dsh` by default). `~/.codex/auth.json` is never copied or modified. The parent directory and file use owner-only permissions where supported, writes are atomic, and refresh writes use a cross-process file lock.
+- If startup reports an `openai-codex` collision, an old `dsh-codex` bundle or manual provider row may already own the adapter. Inspect the effective configuration and remove only the confirmed conflicting owner. Do not delete auth files or unrelated providers.
 - Removing the package does not delete OAuth state. Run `logout` only when credential removal is intended.
 
 ## Compatibility and security boundary
