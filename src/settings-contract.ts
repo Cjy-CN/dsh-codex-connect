@@ -26,6 +26,22 @@ export interface OpenAICodexSettingsConfig {
   searchMode: OpenAICodexSearchMode
   searchContextSize: OpenAICodexSearchContextSize
   searchMaxOutputTokens: number
+  /**
+   * Optional context-window override, in tokens, applied to every Codex model.
+   * Omitting it preserves the upstream pi-ai model catalog capacity.
+   */
+  contextWindow?: number
+  /**
+   * HTTP(S) proxy host for every OpenAI/ChatGPT request: a hostname or IP,
+   * optionally `host:port` or `scheme://host[:port]`. An empty value disables
+   * proxying and sends requests directly.
+   */
+  proxyAddress: string
+  /**
+   * HTTP(S) proxy port used when `proxyAddress` does not carry one. Omitting
+   * both leaves proxying disabled.
+   */
+  proxyPort?: number
 }
 
 export const DEFAULT_OPENAI_CODEX_SETTINGS: Readonly<OpenAICodexSettingsConfig> = Object.freeze({
@@ -35,6 +51,7 @@ export const DEFAULT_OPENAI_CODEX_SETTINGS: Readonly<OpenAICodexSettingsConfig> 
   searchMode: DEFAULT_OPENAI_CODEX_SEARCH_MODE,
   searchContextSize: DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE,
   searchMaxOutputTokens: DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
+  proxyAddress: '',
 })
 
 /** Fill the schema defaults even when called without Cordis validation. */
@@ -57,11 +74,27 @@ export function decodeOpenAICodexSettings(value: unknown): OpenAICodexSettingsCo
   const searchMode = value['searchMode']
   const searchContextSize = value['searchContextSize']
   const searchMaxOutputTokens = value['searchMaxOutputTokens']
+  const contextWindow = value['contextWindow']
+  const proxyAddress = value['proxyAddress']
+  const proxyPort = value['proxyPort']
   if (typeof enableSearch !== 'boolean' || typeof enableImageTool !== 'boolean') return undefined
   if (typeof searchModel !== 'string' || searchModel.trim().length === 0) return undefined
   if (searchMode !== 'cached' && searchMode !== 'indexed' && searchMode !== 'live') return undefined
   if (searchContextSize !== 'low' && searchContextSize !== 'medium' && searchContextSize !== 'high') return undefined
   if (typeof searchMaxOutputTokens !== 'number' || !Number.isInteger(searchMaxOutputTokens) || searchMaxOutputTokens < 1) return undefined
+  const resolvedContextWindow = contextWindow === undefined || contextWindow === null
+    ? undefined
+    : typeof contextWindow === 'number' && Number.isSafeInteger(contextWindow) && contextWindow >= 1
+      ? contextWindow
+      : undefined
+  if (contextWindow !== undefined && contextWindow !== null && resolvedContextWindow === undefined) return undefined
+  if (typeof proxyAddress !== 'string') return undefined
+  const resolvedProxyPort = proxyPort === undefined || proxyPort === null
+    ? undefined
+    : typeof proxyPort === 'number' && Number.isInteger(proxyPort) && proxyPort >= 1 && proxyPort <= 65535
+      ? proxyPort
+      : undefined
+  if (proxyPort !== undefined && proxyPort !== null && resolvedProxyPort === undefined) return undefined
   return {
     enableSearch,
     enableImageTool,
@@ -69,5 +102,8 @@ export function decodeOpenAICodexSettings(value: unknown): OpenAICodexSettingsCo
     searchMode,
     searchContextSize,
     searchMaxOutputTokens,
+    ...resolvedContextWindow === undefined ? {} : { contextWindow: resolvedContextWindow },
+    proxyAddress,
+    ...resolvedProxyPort === undefined ? {} : { proxyPort: resolvedProxyPort },
   }
 }

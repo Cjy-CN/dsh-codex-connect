@@ -37,7 +37,12 @@ provide only the secret-free output requested there.
   additional sandbox.
 - **Local credentials:** OAuth state is kept in the DSH home on the local host.
   The credential directory and file use owner-only permissions where supported.
-  Do not copy that state or disclose its contents.
+  Do not manually copy that state or disclose its contents. The explicit Codex
+  import action is the only exception: the Host reads a bounded regular
+  `$CODEX_HOME/auth.json` (rejecting broad POSIX modes), copies only validated OAuth leaves through a
+  locked atomic write, never returns them to the browser, and never modifies the
+  source. Replacing an existing plugin credential requires a second user
+  confirmation.
 - **Browser origin:** Browser OAuth routes use same-origin and loopback checks by
   default. A trusted origin is an explicit opt-in for a network you control;
   never expose the route to the public Internet.

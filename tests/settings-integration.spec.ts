@@ -63,6 +63,8 @@ describe('OpenAI Codex Host settings integration', () => {
     }])
     const descriptor = ctx.settings.describe().find(entry => entry.ns === OpenAICodex.OPENAI_CODEX_SETTINGS_NS)
     expect(descriptor?.value).toEqual(OpenAICodex.DEFAULT_OPENAI_CODEX_SETTINGS)
+    const catalogContextWindow = (await ctx.llm.resolveModelInfo('openai-codex', 'gpt-5.6-sol')).context?.contextWindow
+    expect(catalogContextWindow).toBeTypeOf('number')
     expect(ctx.tools.get(OpenAICodex.VIEW_IMAGE_TOOL_NAME)).toBeUndefined()
     await expect(ctx.web.search({ query: 'disabled' })).rejects.toMatchObject({ code: 'WEB_PROVIDER_UNAVAILABLE' })
 
@@ -73,9 +75,13 @@ describe('OpenAI Codex Host settings integration', () => {
       searchMode: 'live',
       searchContextSize: 'high',
       searchMaxOutputTokens: 2048,
+      contextWindow: 123_456,
     })
     await vi.waitFor(() => {
       expect(ctx.tools.get(OpenAICodex.VIEW_IMAGE_TOOL_NAME)).toBeDefined()
+    })
+    await expect(ctx.llm.resolveModelInfo('openai-codex', 'gpt-5.6-sol')).resolves.toMatchObject({
+      context: { contextWindow: 123_456 },
     })
     await expect(ctx.web.search({ query: 'enabled' })).rejects.toMatchObject({ code: 'WEB_PROVIDER_CREDENTIAL_MISSING' })
 
@@ -87,6 +93,24 @@ describe('OpenAI Codex Host settings integration', () => {
       expect(ctx.tools.get(OpenAICodex.VIEW_IMAGE_TOOL_NAME)).toBeUndefined()
     })
     await expect(ctx.web.search({ query: 'disabled again' })).rejects.toMatchObject({ code: 'WEB_PROVIDER_UNAVAILABLE' })
+
+    await ctx.settings.mutate(OpenAICodex.OPENAI_CODEX_SETTINGS_NS, [{ op: 'unset', path: ['contextWindow'] }])
+    await expect(ctx.llm.resolveModelInfo('openai-codex', 'gpt-5.6-sol')).resolves.toMatchObject({
+      context: { contextWindow: catalogContextWindow },
+    })
+
+    await ctx.settings.update(OpenAICodex.OPENAI_CODEX_SETTINGS_NS, {
+      proxyAddress: '127.0.0.1',
+      proxyPort: 7890,
+    })
+    const proxied = ctx.settings.describe().find(entry => entry.ns === OpenAICodex.OPENAI_CODEX_SETTINGS_NS)
+    expect(proxied?.value).toMatchObject({ proxyAddress: '127.0.0.1', proxyPort: 7890 })
+
+    await ctx.settings.update(OpenAICodex.OPENAI_CODEX_SETTINGS_NS, { proxyAddress: '' })
+    await ctx.settings.mutate(OpenAICodex.OPENAI_CODEX_SETTINGS_NS, [{ op: 'unset', path: ['proxyPort'] }])
+    const cleared = ctx.settings.describe().find(entry => entry.ns === OpenAICodex.OPENAI_CODEX_SETTINGS_NS)
+    expect(cleared?.value).toMatchObject({ proxyAddress: '' })
+    expect((cleared?.value as { proxyPort?: unknown } | undefined)?.proxyPort).toBeUndefined()
 
     await plugin.dispose()
     expect(ctx.llm.listConfigurableProviders()).toEqual([])

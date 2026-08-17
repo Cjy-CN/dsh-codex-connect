@@ -4,8 +4,9 @@ Install `dsh-codex-connect` into one requested DeepSeek Harness profile without 
 
 ## Safety requirements
 
-- Never read, print, copy, move, or modify `~/.codex/auth.json`.
+- Never print, inspect manually, move, or modify `~/.codex/auth.json`. Read it only when the user explicitly selects **Import from Codex**; the Host then copies only validated OAuth leaves into the plugin store and never changes the source.
 - Never print or inspect `$DSH_HOME/.openai-codex-auth.json`; `doctor` may inspect pathname metadata only.
+- Never confirm an import overwrite on the user's behalf. An existing plugin credential requires the user's second confirmation in the browser.
 - Never add OAuth URLs, codes, tokens, account identifiers, or generated profile state to Git.
 - Preserve every unrelated profile dependency and patch row.
 - Do not start login unless the user explicitly asks to authenticate.
@@ -21,7 +22,7 @@ The only verified combination is DSH plugin API packages `0.1.0-rc.6`, `@earendi
    dsh plugin --profile web add dsh-codex-connect@alpha
    ```
 
-   After `0.1.0-alpha.4.8` is published, pin it exactly with `dsh plugin --profile web add dsh-codex-connect@0.1.0-alpha.4.8`. If npm is unavailable after its matching GitHub prerelease is created, use `dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.8'`.
+   After `0.1.0-alpha.4.10` is published, pin it exactly with `dsh plugin --profile web add dsh-codex-connect@0.1.0-alpha.4.10`. If npm is unavailable after its matching GitHub prerelease is created, use `dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.10'`.
 
 3. Run `dsh --profile web --dump-config` and require exactly one `llm-openai-codex` row loading `dsh-codex-connect`.
 4. Confirm the effective `agent-default-model` and `web.searchProvider` values are unchanged from before installation.

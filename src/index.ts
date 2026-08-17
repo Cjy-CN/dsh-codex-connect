@@ -18,6 +18,7 @@ import type {} from '@deepseek-ai/dsh-fs'
 import { createOpenAICodexAdapter } from './adapter.ts'
 import { registerOpenAICodexAuthRoutes } from './auth-routes.ts'
 import { assertNoOpenAICodexProviderConflict } from './doctor.ts'
+import { buildCodexProxyConfig, installCodexProxyFetch } from './proxy.ts'
 import { viewImageTool } from './view-image.ts'
 import {
   installOpenAICodexSearchEvent,
@@ -90,8 +91,29 @@ export {
 } from './settings-contract.ts'
 export type { OpenAICodexSettingsConfig } from './settings-contract.ts'
 
+export {
+  buildCodexProxyConfig,
+  installCodexProxyFetch,
+  isCodexTargetUrl,
+  proxyFetch,
+} from './proxy.ts'
+export type { OpenAICodexProxyConfig } from './proxy.ts'
+
 export { loginOpenAICodex, logoutOpenAICodex, openAICodexAuthStatus } from './auth.ts'
 export type { OpenAICodexAuthStatus } from './auth.ts'
+export {
+  CodexAuthImportError,
+  codexAuthJsonPath,
+  importCodexAuthCredential,
+  MAX_CODEX_AUTH_IMPORT_BYTES,
+  parseCodexAuthJson,
+  readCodexAuthCredential,
+} from './codex-auth-import.ts'
+export type {
+  CodexAuthImportErrorCode,
+  CodexAuthImportOptions,
+  CodexAuthImportResult,
+} from './codex-auth-import.ts'
 export {
   OpenAICodexCredentialStore,
   OPENAI_CODEX_AUTH_FILENAME,
@@ -139,6 +161,19 @@ export interface Config {
   searchContextSize?: OpenAICodexSearchContextSize
   /** Maximum generated tokens returned by the standalone search endpoint. */
   searchMaxOutputTokens?: number
+  /**
+   * Context-window override, in tokens, applied to every Codex model. Omit it
+   * to retain the capacities published by the upstream pi-ai catalog.
+   */
+  contextWindow?: number
+  /**
+   * HTTP(S) proxy host for every OpenAI/ChatGPT request: a hostname or IP,
+   * optionally `host:port` or `scheme://host[:port]`. Leave blank to send
+   * requests directly.
+   */
+  proxyAddress?: string
+  /** HTTP(S) proxy port, used when `proxyAddress` carries none. */
+  proxyPort?: number
 }
 
 export const Config: z<Config> = z.object({
@@ -148,6 +183,9 @@ export const Config: z<Config> = z.object({
   searchMode: z.union(['cached', 'indexed', 'live'] as const).default(DEFAULT_OPENAI_CODEX_SEARCH_MODE),
   searchContextSize: z.union(['low', 'medium', 'high'] as const).default(DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE),
   searchMaxOutputTokens: z.number().step(1).min(1).default(DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS),
+  contextWindow: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER),
+  proxyAddress: z.string().default(''),
+  proxyPort: z.number().step(1).min(1).max(65535),
 })
 
 /**
@@ -163,7 +201,12 @@ export function apply(ctx: Context, config: Config): void {
   assertNoOpenAICodexProviderConflict(ctx.llm.listProviders().map(provider => provider.id))
   ctx.llm.registerAdapter(
     [OPENAI_CODEX_PROVIDER],
-    createOpenAICodexAdapter(credentials, () => ctx.get('attachments')),
+    createOpenAICodexAdapter(
+      credentials,
+      () => ctx.get('attachments'),
+      () => buildCodexProxyConfig(resolveOpenAICodexSettings(current())) !== undefined,
+      () => resolveOpenAICodexSettings(current()).contextWindow,
+    ),
   )
   ctx.llm.registerConfigurableProviders([{
     provider: OPENAI_CODEX_PROVIDER,
@@ -180,6 +223,9 @@ export function apply(ctx: Context, config: Config): void {
   let searchTail = Promise.resolve()
   let imageFiber: Fiber | undefined
   let imageTail = Promise.resolve()
+  let proxyPatch: (() => void) | undefined
+  let proxyKey = ''
+  let proxyTail = Promise.resolve()
 
   const reconcileSearch = async (): Promise<void> => {
     if (stopped) return
@@ -240,6 +286,26 @@ export function apply(ctx: Context, config: Config): void {
     })
   }
 
+  /**
+   * Apply or remove the proxy fetch patch for the current settings. The patch
+   * is scoped to the first-party OpenAI/ChatGPT hosts, so changing the proxy
+   * setting reroutes the next request while every other URL keeps the original
+   * fetch. A blank address removes the patch and restores direct connections.
+   */
+  const reconcileProxy = async (): Promise<void> => {
+    if (stopped) return
+    const resolved = resolveOpenAICodexSettings(current())
+    const config = buildCodexProxyConfig(resolved)
+    const key = config === undefined ? '' : config.href
+    if (key === proxyKey) return
+    if (proxyPatch !== undefined) {
+      proxyPatch()
+      proxyPatch = undefined
+    }
+    proxyKey = key
+    if (config !== undefined) proxyPatch = installCodexProxyFetch(config)
+  }
+
   const scheduleCapabilities = (): void => {
     searchTail = searchTail.then(reconcileSearch, reconcileSearch).catch((error: unknown) => {
       ctx.logger.error('dsh-codex-connect: could not apply the updated search configuration')
@@ -249,11 +315,19 @@ export function apply(ctx: Context, config: Config): void {
       ctx.logger.error('dsh-codex-connect: could not apply the updated image-tool configuration')
       ctx.logger.error(error)
     })
+    proxyTail = proxyTail.then(reconcileProxy, reconcileProxy).catch((error: unknown) => {
+      ctx.logger.error('dsh-codex-connect: could not apply the updated proxy configuration')
+      ctx.logger.error(error)
+    })
   }
 
   ctx.effect(() => async () => {
     stopped = true
-    await Promise.all([searchTail, imageTail])
+    await Promise.all([searchTail, imageTail, proxyTail])
+    if (proxyPatch !== undefined) {
+      proxyPatch()
+      proxyPatch = undefined
+    }
     const search = searchFiber
     const image = imageFiber
     searchFiber = undefined

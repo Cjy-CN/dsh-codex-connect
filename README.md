@@ -28,7 +28,7 @@ dsh plugin --profile web add dsh-codex-connect@alpha
 
 Expected result: the package is added to that profile. This does not change the profile's default model or global search route.
 
-To reproduce this release exactly, use `dsh plugin --profile web add dsh-codex-connect@0.1.0-alpha.4.8`. If npm is unavailable after the matching GitHub prerelease exists, use `dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.8'`. A local checkout can be installed as `link:/absolute/path/to/dsh-codex-connect`.
+To reproduce this release exactly, use `dsh plugin --profile web add dsh-codex-connect@0.1.0-alpha.4.10`. If npm is unavailable after the matching GitHub prerelease exists, use `dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.10'`. A local checkout can be installed as `link:/absolute/path/to/dsh-codex-connect`.
 
 ### 2. Start Harness
 
@@ -51,6 +51,8 @@ Expected result: a fresh installation shows **Not signed in** and a **Sign in wi
 ### 4. Sign in with ChatGPT
 
 Click **Sign in with ChatGPT** and complete the browser approval yourself. Do not copy an authorization URL, code, token, or account identifier into an issue, log, or configuration file.
+
+As an alternative one-time migration, **Import from Codex** asks the Host to read `$CODEX_HOME/auth.json` (default `~/.codex/auth.json`) locally and copy only the required OAuth fields into this plugin's separate store. Credential contents never cross the browser. If a plugin credential already exists, the first request stops and a second confirmation is required before overwrite.
 
 Expected result: the account area changes to **Signed in**. The screenshot below is the successful end state after this step; it is not the initial sign-in screen.
 
@@ -142,13 +144,21 @@ Selecting Codex as the profile's global search route is another explicit change:
 | `searchMode` | `cached` | `cached`, `indexed`, `live` |
 | `searchContextSize` | `medium` | `low`, `medium`, `high` |
 | `searchMaxOutputTokens` | `10000` | positive integer |
+| `contextWindow` | *(blank)* | positive integer token count applied to every Codex model |
+| `proxyAddress` | *(blank)* | hostname/IP, `host:port`, or `http(s)://host[:port]` |
+| `proxyPort` | *(blank)* | integer `1`–`65535` |
+
+`contextWindow` overrides the capacity reported to Harness for every Codex model, affecting context budgeting, compaction, and overflow detection. It cannot expand the upstream model's actual capacity; leave it blank to use the pi-ai catalog value.
+
+Requests to OpenAI and ChatGPT hosts (`chatgpt.com`, `*.openai.com`) are routed through an HTTP(S) proxy when an address and a port are configured; leaving both blank connects directly. `proxyAddress` may carry its own port (for example `127.0.0.1:7890`), which takes precedence over `proxyPort`. Only `http`/`https` proxies are supported; SOCKS and PAC are not.
 
 ## Reauthentication, diagnostics, and conflicts
 
 - If the card says **Sign in again** or the server asks for reauthentication, click that action and complete the same safe browser flow. It preserves this plugin's capability settings and does not silently change your default model or global search route. Do not run `logout` just to renew a session.
 - `doctor` reads process and filesystem metadata only. `doctor --json` emits exactly one secret-free JSON document with schema version 1, package/version/Node metadata, credential-file state and safe mode, capabilities, conflict status, and hints. It omits the absolute credential path and OAuth, account, and expiry data.
 - `status --json` emits only signed-in or signed-out state with package metadata. `status --json` reads the credential only to determine sign-in state, but never prints credential contents or starts OAuth.
-- OAuth is stored separately at `$DSH_HOME/.openai-codex-auth.json` (`~/.dsh` by default). `~/.codex/auth.json` is never copied or modified. The parent directory and file use owner-only permissions where supported, writes are atomic, and refresh writes use a cross-process file lock.
+- OAuth is stored separately at `$DSH_HOME/.openai-codex-auth.json` (`~/.dsh` by default). The explicit **Import from Codex** action may read `$CODEX_HOME/auth.json` and copy only `access_token`, `refresh_token`, the account id, and JWT expiry into the plugin store; it never modifies the source file. Existing plugin credentials require a second confirmation before the locked, atomic overwrite. The parent directory and file use owner-only permissions where supported, and refresh writes use a cross-process file lock.
+- Import is a one-time migration, not live synchronization. Codex CLI and Codex Connect may rotate copied refresh tokens independently, so continuing to use both copies can make one stale; independent browser login remains the recommended long-term setup.
 - By default, the OAuth routes accept loopback browser requests only. When DSH runs on one device and you open it from another device on a trusted network, approve the browser address-bar origin explicitly on the device that runs DSH:
 
   ```sh

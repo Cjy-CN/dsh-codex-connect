@@ -19,8 +19,8 @@ export const OPENAI_CODEX_STREAM_IDLE_TIMEOUT_MS = 300_000
  * the explicit override supplied by this plugin; it never discovers an API
  * key from the environment or persistent api-key credentials.
  */
-function requestProvider(provider: Provider): Provider {
-  return {
+function requestProvider(provider: Provider, contextWindow?: number): Provider {
+  const wrapped: Provider = {
     ...provider,
     auth: {
       ...provider.auth,
@@ -35,6 +35,11 @@ function requestProvider(provider: Provider): Provider {
       },
     },
   }
+  if (contextWindow === undefined) return wrapped
+  return {
+    ...wrapped,
+    getModels: () => wrapped.getModels().map(model => ({ ...model, contextWindow })),
+  }
 }
 
 /**
@@ -42,24 +47,47 @@ function requestProvider(provider: Provider): Provider {
  * public pi-ai adapter owns Harness message conversion, image attachment
  * resolution, streaming, reasoning metadata, and compaction behavior; this
  * plugin supplies its provider-native OAuth token for each request.
+ *
+ * When a proxy is configured the profile forces the SSE transport: the
+ * Codex WebSocket path in Node cannot traverse an HTTP proxy, so proxying
+ * would silently bypass the tunnel unless the SSE path is used.
+ * @param credentials - persistent provider-owned OAuth store.
+ * @param resolveAttachments - resolve the optional durable attachment service.
+ * @param resolveProxyEnabled - read the live proxy setting before each request.
+ * @param resolveContextWindow - read the optional global model-context override.
+ *   A fresh profile map is published per call so either setting reaches the next
+ *   request without a restart while in-flight requests keep their snapshot.
  */
 export function createOpenAICodexAdapter(
   credentials: OpenAICodexCredentialStore,
   resolveAttachments: () => AttachmentStore | undefined,
+  resolveProxyEnabled: () => boolean,
+  resolveContextWindow: () => number | undefined,
 ): PiAiAdapter {
   const provider = openaiCodexProvider()
-  const profiles = new Map<string, ResolvedPiAiProviderProfile>([[OPENAI_CODEX_PROVIDER, {
+  const baseProfile: ResolvedPiAiProviderProfile = {
     provider: OPENAI_CODEX_PROVIDER,
     displayName: 'OpenAI Codex',
     streamIdleTimeoutMs: OPENAI_CODEX_STREAM_IDLE_TIMEOUT_MS,
     retryPolicy: resolveRetryPolicy(undefined, 'dsh-codex-connect retryPolicy'),
     configuredMaxTokens: new Map(),
     piProvider: requestProvider(provider),
-  }]])
+  }
   const models: MutableModels = createModels({ credentials })
   models.setProvider(provider)
   return new PiAiAdapter({
-    profiles: () => profiles,
+    profiles: () => {
+      const contextWindow = resolveContextWindow()
+      const proxyEnabled = resolveProxyEnabled()
+      const profile = contextWindow === undefined && !proxyEnabled
+        ? baseProfile
+        : {
+            ...baseProfile,
+            ...contextWindow === undefined ? {} : { piProvider: requestProvider(provider, contextWindow) },
+            ...proxyEnabled ? { transport: 'sse' as const } : {},
+          }
+      return new Map<string, ResolvedPiAiProviderProfile>([[OPENAI_CODEX_PROVIDER, profile]])
+    },
     resolveApiKey: async () => (await models.getAuth(OPENAI_CODEX_PROVIDER))?.auth.apiKey,
     resolveAttachments,
   })

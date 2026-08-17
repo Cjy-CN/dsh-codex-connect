@@ -6,6 +6,11 @@ import type { AuthEvent, AuthPrompt } from '@earendil-works/pi-ai'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { loginOpenAICodex, logoutOpenAICodex, openAICodexAuthStatus } from './auth.ts'
+import {
+  CodexAuthImportError,
+  importCodexAuthCredential,
+} from './codex-auth-import.ts'
+import type { CodexAuthImportResult } from './codex-auth-import.ts'
 import type { OpenAICodexCredentialStore } from './store.ts'
 import {
   isOpenAICodexReauthRequiredError,
@@ -14,9 +19,11 @@ import {
 } from './usage.ts'
 import type { OpenAICodexUsage } from './usage.ts'
 import {
+  OPENAI_CODEX_AUTH_IMPORT_PATH,
   OPENAI_CODEX_AUTH_LOGIN_PATH,
   OPENAI_CODEX_AUTH_LOGOUT_PATH,
   OPENAI_CODEX_AUTH_STATUS_PATH,
+  OPENAI_CODEX_IMPORT_OVERWRITE_HEADER,
 } from './auth-paths.ts'
 import {
   OPENAI_CODEX_TRUSTED_ORIGINS_FILENAME,
@@ -25,9 +32,11 @@ import {
 } from './trusted-origins.ts'
 
 export {
+  OPENAI_CODEX_AUTH_IMPORT_PATH,
   OPENAI_CODEX_AUTH_LOGIN_PATH,
   OPENAI_CODEX_AUTH_LOGOUT_PATH,
   OPENAI_CODEX_AUTH_STATUS_PATH,
+  OPENAI_CODEX_IMPORT_OVERWRITE_HEADER,
 } from './auth-paths.ts'
 
 /** Maximum time a browser request waits for the provider's authorization URL. */
@@ -113,6 +122,18 @@ export class OpenAICodexWebAuth {
     await logoutOpenAICodex(this.store)
     this.challenge = undefined
     this.state = { status: 'signed-out' }
+  }
+
+  /** Import the host-local Codex CLI credential, cancelling any pending login. */
+  async importCodexCredential(overwrite: boolean): Promise<CodexAuthImportResult> {
+    this.cancelSignIn(new Error('OpenAI Codex sign-in cancelled by credential import'))
+    await this.operation?.catch(() => undefined)
+    const result = await importCodexAuthCredential(this.store, { overwrite })
+    if (result.status === 'imported') {
+      this.challenge = undefined
+      this.state = { status: 'signed-out' }
+    }
+    return result
   }
 
   /** Stop the owned callback listener during plugin disposal. */
@@ -333,6 +354,33 @@ export function registerOpenAICodexAuthRoutes(
           if (req.method !== 'GET') return json(res, 405, { error: 'method not allowed' })
           if (!await authorize(req, res)) return
           json(res, 200, await auth.status())
+        },
+      }),
+      ctx.webServer.register({
+        kind: 'exact',
+        path: OPENAI_CODEX_AUTH_IMPORT_PATH,
+        handler: async (req, res) => {
+          if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' })
+          if (!await authorize(req, res)) return
+          const confirmation = req.headers[OPENAI_CODEX_IMPORT_OVERWRITE_HEADER]
+          if (confirmation !== undefined && confirmation !== 'confirm') {
+            return json(res, 400, { error: 'invalid-overwrite-confirmation' })
+          }
+          try {
+            const result = await auth.importCodexCredential(confirmation === 'confirm')
+            if (result.status === 'confirmation-required') {
+              return json(res, 409, { error: 'existing-credential' })
+            }
+            json(res, 200, result)
+          } catch (error: unknown) {
+            if (error instanceof CodexAuthImportError) {
+              const status = error.code === 'codex-auth-not-found'
+                ? 404
+                : error.code === 'codex-auth-unreadable' ? 500 : 400
+              return json(res, status, { error: error.code })
+            }
+            json(res, 500, { error: safeMessage(error) })
+          }
         },
       }),
       ctx.webServer.register({

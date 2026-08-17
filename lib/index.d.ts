@@ -1,5 +1,5 @@
 import z from "@deepseek-ai/schemastery";
-import { AuthInteraction, Credential, CredentialInfo, CredentialStore } from "@earendil-works/pi-ai";
+import { AuthInteraction, Credential, CredentialInfo, CredentialStore, OAuthCredential } from "@earendil-works/pi-ai";
 import "@deepseek-ai/dsh-tools";
 import { WebSearchProvider, WebSearchRequest, WebSearchResult } from "@deepseek-ai/dsh-web";
 import { Context } from "@deepseek-ai/cordis";
@@ -228,6 +228,22 @@ interface OpenAICodexSettingsConfig {
   searchMode: OpenAICodexSearchMode;
   searchContextSize: OpenAICodexSearchContextSize;
   searchMaxOutputTokens: number;
+  /**
+   * Optional context-window override, in tokens, applied to every Codex model.
+   * Omitting it preserves the upstream pi-ai model catalog capacity.
+   */
+  contextWindow?: number;
+  /**
+   * HTTP(S) proxy host for every OpenAI/ChatGPT request: a hostname or IP,
+   * optionally `host:port` or `scheme://host[:port]`. An empty value disables
+   * proxying and sends requests directly.
+   */
+  proxyAddress: string;
+  /**
+   * HTTP(S) proxy port used when `proxyAddress` does not carry one. Omitting
+   * both leaves proxying disabled.
+   */
+  proxyPort?: number;
 }
 declare const DEFAULT_OPENAI_CODEX_SETTINGS: Readonly<OpenAICodexSettingsConfig>;
 /** Fill the schema defaults even when called without Cordis validation. */
@@ -337,6 +353,59 @@ declare function installOpenAICodexSearchEvent(): void;
  */
 declare function recordOpenAICodexSearchRequest(ctx: Context, request: OpenAICodexSearchRequestRecord): void;
 //#endregion
+//#region src/proxy.d.ts
+/**
+ * HTTP(S) CONNECT proxy transport for OpenAI/ChatGPT requests.
+ *
+ * The Codex provider in pi-ai streams over the runtime `fetch`, and Node's
+ * built-in fetch does not honor proxy environment variables, so a configured
+ * proxy is applied by replacing `globalThis.fetch` with a wrapper that is
+ * scoped to the plugin's first-party OpenAI endpoints. Requests to those hosts
+ * are tunneled with HTTP CONNECT and rebuilt as a fetch-compatible `Response`,
+ * which means the pi-ai SSE stream, the standalone search and usage fetches,
+ * and the OAuth token exchange all traverse the proxy without any per-call
+ * plumbing. Every other URL keeps flowing through the original `fetch`, and
+ * disposing the patch restores the original implementation exactly.
+ *
+ * Only http:// and https:// proxy URLs are supported; SOCKS and PAC are
+ * rejected at configuration time. The target may be http or https — a plain
+ * target is written straight into the tunnel while an https target is
+ * additionally wrapped in TLS, matching the CONNECT semantics of every
+ * mainstream HTTP proxy.
+ */
+/** A usable proxy endpoint after {@link buildCodexProxyConfig} validation. */
+type OpenAICodexProxyConfig = URL;
+/** Whether one URL targets the OpenAI/ChatGPT endpoints the plugin proxies. */
+declare function isCodexTargetUrl(url: URL): boolean;
+/**
+ * Build the effective proxy endpoint from the user-facing settings.
+ *
+ * `proxyAddress` accepts a bare hostname/IP, `host:port`, or an explicit
+ * `http(s)://` URL. A port written into the address wins over `proxyPort`;
+ * otherwise `proxyPort` is required. An empty address, an unsupported scheme
+ * (for example SOCKS), or a missing port all resolve to `undefined`, which
+ * means "no proxy" — the caller must treat that as a direct connection.
+ */
+declare function buildCodexProxyConfig(input: {
+  proxyAddress?: string;
+  proxyPort?: number;
+}): OpenAICodexProxyConfig | undefined;
+/**
+ * Fetch through `proxy`, following redirects like the native fetch. `redirect`
+ * is honored: `error` rejects on a redirect, `manual` returns it as-is.
+ */
+declare function proxyFetch(input: string | URL, init: RequestInit | undefined, proxy: URL, redirects?: number): Promise<Response>;
+/**
+ * Replace the runtime fetch with a proxy-aware wrapper until the returned
+ * disposer is called. Requests whose URL targets the plugin's first-party
+ * OpenAI/ChatGPT hosts are tunneled through `proxy`; everything else —
+ * including the local Harness web server — is delegated to the original
+ * fetch untouched. Dispose restores the exact original implementation.
+ * @param proxy - validated proxy endpoint from {@link buildCodexProxyConfig}.
+ * @returns disposer removing the patch.
+ */
+declare function installCodexProxyFetch(proxy: OpenAICodexProxyConfig): () => void;
+//#endregion
 //#region src/auth.d.ts
 /** Non-secret login state shown by the launcher. */
 interface OpenAICodexAuthStatus {
@@ -363,6 +432,43 @@ declare function logoutOpenAICodex(store?: OpenAICodexCredentialStore): Promise<
  */
 declare function openAICodexAuthStatus(store?: OpenAICodexCredentialStore): Promise<OpenAICodexAuthStatus>;
 //#endregion
+//#region src/codex-auth-import.d.ts
+/** Maximum accepted Codex auth document size. Tokens need only a few KiB. */
+declare const MAX_CODEX_AUTH_IMPORT_BYTES: number;
+/** Stable browser-safe failure codes; none reveal a local path or credential. */
+type CodexAuthImportErrorCode = 'codex-auth-not-found' | 'codex-auth-unreadable' | 'codex-auth-unsafe-file' | 'codex-auth-invalid';
+/** One expected import failure with a redacted public code. */
+declare class CodexAuthImportError extends Error {
+  readonly code: CodexAuthImportErrorCode;
+  constructor(code: CodexAuthImportErrorCode);
+}
+type CodexAuthImportResult = {
+  status: 'confirmation-required';
+} | {
+  status: 'imported';
+  replaced: boolean;
+};
+interface CodexAuthImportOptions {
+  /** Explicit test/operator source; defaults to `$CODEX_HOME/auth.json`. */
+  sourcePath?: string;
+  /** Permit replacing an existing plugin-owned credential. */
+  overwrite?: boolean;
+}
+/** Resolve the Codex CLI file-backed credential path without touching it. */
+declare function codexAuthJsonPath(codexHome?: string | undefined): string;
+/** Parse only the OAuth leaves needed by this plugin and build its canonical credential. */
+declare function parseCodexAuthJson(text: string): OAuthCredential;
+/** Read one bounded, owner-only regular file and convert its Codex OAuth data. */
+declare function readCodexAuthCredential(sourcePath?: string): Promise<OAuthCredential>;
+/**
+ * Import a Codex CLI credential without mutating the source document.
+ *
+ * The first call stops before reading the source when the plugin already owns
+ * a credential. A confirmed retry performs a serialized read-modify-write, so
+ * a concurrent login cannot be overwritten without the same explicit flag.
+ */
+declare function importCodexAuthCredential(store?: OpenAICodexCredentialStore, options?: CodexAuthImportOptions): Promise<CodexAuthImportResult>;
+//#endregion
 //#region src/index.d.ts
 /** Stable Cordis plugin name. */
 declare const name = "llm-openai-codex";
@@ -384,6 +490,19 @@ interface Config {
   searchContextSize?: OpenAICodexSearchContextSize;
   /** Maximum generated tokens returned by the standalone search endpoint. */
   searchMaxOutputTokens?: number;
+  /**
+   * Context-window override, in tokens, applied to every Codex model. Omit it
+   * to retain the capacities published by the upstream pi-ai catalog.
+   */
+  contextWindow?: number;
+  /**
+   * HTTP(S) proxy host for every OpenAI/ChatGPT request: a hostname or IP,
+   * optionally `host:port` or `scheme://host[:port]`. Leave blank to send
+   * requests directly.
+   */
+  proxyAddress?: string;
+  /** HTTP(S) proxy port, used when `proxyAddress` carries none. */
+  proxyPort?: number;
 }
 declare const Config: z<Config>;
 /**
@@ -395,4 +514,4 @@ declare const Config: z<Config>;
  */
 declare function apply(ctx: Context, config: Config): void;
 //#endregion
-export { COMPATIBILITY_CONTRACT, COMPATIBILITY_PACKAGES, COMPATIBILITY_SCHEMA_VERSION, type CompatibilityDetectionOptions, type CompatibilityEntry, type CompatibilityEvaluationInput, type CompatibilityPackageName, type CompatibilityReport, type CompatibilityStatus, Config, DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE, DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_CODEX_SEARCH_MODE, DEFAULT_OPENAI_CODEX_SEARCH_MODEL, DEFAULT_OPENAI_CODEX_SETTINGS, DSH_PLUGIN_API_PACKAGES, OPENAI_CODEX_AUTH_FILENAME, OPENAI_CODEX_BASE_URL, OPENAI_CODEX_PROVIDER, OPENAI_CODEX_SEARCH_MODEL_REQUEST_EVENT, OPENAI_CODEX_SEARCH_PROVIDER, OPENAI_CODEX_SEARCH_URL, OPENAI_CODEX_SETTINGS_NAMESPACE, OPENAI_CODEX_SETTINGS_NS, OPENAI_CODEX_USAGE_URL, type OpenAICodexAuthStatus, OpenAICodexCredentialStore, type OpenAICodexCredits, type OpenAICodexDiagnosticOptions, type OpenAICodexDiagnosticReport, type OpenAICodexIndividualLimit, type OpenAICodexRateLimit, type OpenAICodexRateLimitWindow, type OpenAICodexSearchContextSize, type OpenAICodexSearchMode, OpenAICodexSearchProvider, type OpenAICodexSearchProviderOptions, type OpenAICodexSearchRequestRecord, type OpenAICodexSettingsConfig, type OpenAICodexUsage, PI_AI_PACKAGE, SUPPORTED_DSH_PLUGIN_API_VERSION, SUPPORTED_NODE_RANGE, SUPPORTED_PI_AI_VERSION, VIEW_IMAGE_TOOL_NAME, apply, assertNoOpenAICodexProviderConflict, assessCompatibility, decodeOpenAICodexSettings, detectCompatibility, diagnoseOpenAICodex, evaluateCompatibility, inject, installOpenAICodexSearchEvent, loginOpenAICodex, logoutOpenAICodex, mapOpenAICodexSearchResponse, name, openAICodexAuthPath, openAICodexAuthStatus, openAICodexConflictMessage, parseOpenAICodexUsage, readOpenAICodexRateLimits, recordOpenAICodexSearchRequest, resolveOpenAICodexSettings };
+export { COMPATIBILITY_CONTRACT, COMPATIBILITY_PACKAGES, COMPATIBILITY_SCHEMA_VERSION, CodexAuthImportError, type CodexAuthImportErrorCode, type CodexAuthImportOptions, type CodexAuthImportResult, type CompatibilityDetectionOptions, type CompatibilityEntry, type CompatibilityEvaluationInput, type CompatibilityPackageName, type CompatibilityReport, type CompatibilityStatus, Config, DEFAULT_OPENAI_CODEX_SEARCH_CONTEXT_SIZE, DEFAULT_OPENAI_CODEX_SEARCH_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_CODEX_SEARCH_MODE, DEFAULT_OPENAI_CODEX_SEARCH_MODEL, DEFAULT_OPENAI_CODEX_SETTINGS, DSH_PLUGIN_API_PACKAGES, MAX_CODEX_AUTH_IMPORT_BYTES, OPENAI_CODEX_AUTH_FILENAME, OPENAI_CODEX_BASE_URL, OPENAI_CODEX_PROVIDER, OPENAI_CODEX_SEARCH_MODEL_REQUEST_EVENT, OPENAI_CODEX_SEARCH_PROVIDER, OPENAI_CODEX_SEARCH_URL, OPENAI_CODEX_SETTINGS_NAMESPACE, OPENAI_CODEX_SETTINGS_NS, OPENAI_CODEX_USAGE_URL, type OpenAICodexAuthStatus, OpenAICodexCredentialStore, type OpenAICodexCredits, type OpenAICodexDiagnosticOptions, type OpenAICodexDiagnosticReport, type OpenAICodexIndividualLimit, type OpenAICodexProxyConfig, type OpenAICodexRateLimit, type OpenAICodexRateLimitWindow, type OpenAICodexSearchContextSize, type OpenAICodexSearchMode, OpenAICodexSearchProvider, type OpenAICodexSearchProviderOptions, type OpenAICodexSearchRequestRecord, type OpenAICodexSettingsConfig, type OpenAICodexUsage, PI_AI_PACKAGE, SUPPORTED_DSH_PLUGIN_API_VERSION, SUPPORTED_NODE_RANGE, SUPPORTED_PI_AI_VERSION, VIEW_IMAGE_TOOL_NAME, apply, assertNoOpenAICodexProviderConflict, assessCompatibility, buildCodexProxyConfig, codexAuthJsonPath, decodeOpenAICodexSettings, detectCompatibility, diagnoseOpenAICodex, evaluateCompatibility, importCodexAuthCredential, inject, installCodexProxyFetch, installOpenAICodexSearchEvent, isCodexTargetUrl, loginOpenAICodex, logoutOpenAICodex, mapOpenAICodexSearchResponse, name, openAICodexAuthPath, openAICodexAuthStatus, openAICodexConflictMessage, parseCodexAuthJson, parseOpenAICodexUsage, proxyFetch, readCodexAuthCredential, readOpenAICodexRateLimits, recordOpenAICodexSearchRequest, resolveOpenAICodexSettings };

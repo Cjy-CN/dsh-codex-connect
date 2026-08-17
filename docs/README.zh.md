@@ -28,7 +28,7 @@ dsh plugin --profile web add dsh-codex-connect@alpha
 
 预期结果：包被加入该 profile。这个动作不会更改 profile 的默认模型或全局搜索路由。
 
-如需精确复现这个版本，使用 `dsh plugin --profile web add dsh-codex-connect@0.1.0-alpha.4.8`。对应 GitHub prerelease 已创建但 npm 不可用时，可使用 `dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.8'`。本地 checkout 可安装为 `link:/absolute/path/to/dsh-codex-connect`。
+如需精确复现这个版本，使用 `dsh plugin --profile web add dsh-codex-connect@0.1.0-alpha.4.10`。对应 GitHub prerelease 已创建但 npm 不可用时，可使用 `dsh plugin --profile web add 'github:franksong2702/dsh-codex-connect#v0.1.0-alpha.4.10'`。本地 checkout 可安装为 `link:/absolute/path/to/dsh-codex-connect`。
 
 ### 2. 启动 Harness
 
@@ -51,6 +51,8 @@ dsh web
 ### 4. 使用 ChatGPT 登录
 
 点击 **使用 ChatGPT 登录**，并自行完成浏览器审批。不要把授权 URL、授权码、token 或账户标识复制到 Issue、日志或配置文件中。
+
+也可以使用一次性迁移操作 **从 Codex 导入**：由 Host 在本机读取 `$CODEX_HOME/auth.json`（默认 `~/.codex/auth.json`），只把必要 OAuth 字段复制到插件的独立存储中，凭证内容不会经过浏览器。插件已有凭证时，第一次请求会停止，只有用户在弹窗中再次确认后才会覆盖。
 
 预期结果：账户区变为 **已登录**。下图展示的是完成本步骤后的成功状态，不是开始登录前的页面。
 
@@ -142,13 +144,21 @@ dsh plugin --profile web exec dsh-codex-connect doctor --json
 | `searchMode` | `cached` | `cached`、`indexed`、`live` |
 | `searchContextSize` | `medium` | `low`、`medium`、`high` |
 | `searchMaxOutputTokens` | `10000` | 正整数 |
+| `contextWindow` | *(留空)* | 应用于所有 Codex 模型的正整数 Token 数 |
+| `proxyAddress` | *(留空)* | 主机名/IP、`host:port` 或 `http(s)://host[:port]` |
+| `proxyPort` | *(留空)* | 整数 `1`–`65535` |
+
+`contextWindow` 会覆盖所有 Codex 模型向 Harness 报告的容量，从而影响上下文预算、压缩与溢出判断；它不能扩大上游模型的实际容量。留空时使用 pi-ai 模型目录值。
+
+配置了代理地址与端口后，发往 OpenAI / ChatGPT 主机（`chatgpt.com`、`*.openai.com`）的所有请求都会通过该 HTTP(S) 代理发送；两个字段都留空则直连。`proxyAddress` 也可以自带端口（例如 `127.0.0.1:7890`），自带端口优先于 `proxyPort`。仅支持 `http`/`https` 代理，不支持 SOCKS 与 PAC。
 
 ## 重新登录、诊断与冲突
 
 - 卡片显示 **重新登录**，或服务端要求重新认证时，点击该操作并完成同一套安全的浏览器流程。它会保留本插件的能力配置，不会偷偷改动默认模型或全局搜索路由。不要为了刷新会话而运行 `logout`。
 - `doctor` 只读取进程与文件系统元数据。`doctor --json` 只输出一条可解析的非敏感 JSON，包含 schema version 1、包/版本/Node 信息、认证文件状态与安全 mode、能力、冲突状态和提示；它省略认证文件绝对路径以及 OAuth、账户和过期时间信息。
 - `status --json` 只输出 signed-in 或 signed-out 状态及包元数据。它只为判断登录态读取认证文件，但不会输出认证文件内容或启动 OAuth。
-- OAuth 单独存储于 `$DSH_HOME/.openai-codex-auth.json`（默认 `~/.dsh`）。`~/.codex/auth.json` 不会被复制或修改。支持的平台上，父目录与文件使用仅所有者可访问权限；写入采用原子替换，刷新写入使用跨进程文件锁。
+- OAuth 单独存储于 `$DSH_HOME/.openai-codex-auth.json`（默认 `~/.dsh`）。只有显式点击 **从 Codex 导入** 时，Host 才会读取 `$CODEX_HOME/auth.json`，把 `access_token`、`refresh_token`、账户 ID 和 JWT 过期时间复制到插件存储；源文件绝不会被修改。插件已有凭证时，必须在弹窗中二次确认，才会在文件锁内原子覆盖。支持的平台上，父目录与文件使用仅所有者可访问权限，刷新写入使用跨进程文件锁。
+- 导入是一次性迁移，不是实时同步。Codex CLI 与 Codex Connect 可能分别轮换复制后的刷新令牌，继续同时使用两份凭证可能导致其中一份失效；长期使用仍推荐在插件中独立完成浏览器登录。
 - 默认情况下，OAuth 路由只接受 loopback 浏览器请求。当 DSH 在一台设备运行，而你从可信网络中的另一台设备打开 DSH 时，请在运行 DSH 的设备上显式批准浏览器地址栏中的 origin：
 
   ```sh

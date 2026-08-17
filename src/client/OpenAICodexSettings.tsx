@@ -6,9 +6,11 @@ import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
 import type { OpenAICodexUsage } from '../usage.ts'
 import type { OpenAICodexSettingsConfig } from '../settings-contract.ts'
 import {
+  OPENAI_CODEX_AUTH_IMPORT_PATH,
   OPENAI_CODEX_AUTH_LOGIN_PATH,
   OPENAI_CODEX_AUTH_LOGOUT_PATH,
   OPENAI_CODEX_AUTH_STATUS_PATH,
+  OPENAI_CODEX_IMPORT_OVERWRITE_HEADER,
 } from '../auth-paths.ts'
 import type { OpenAICodexSettingsKey } from './locales.ts'
 import { OpenAICodexConfiguration } from './OpenAICodexConfiguration.tsx'
@@ -52,7 +54,7 @@ const embeddedCardStyle: CSSProperties = { ...cardStyle, padding: 0, border: 0, 
 const rowStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }
 const statusStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, fontSize: 15, fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }
 const buttonStyle: CSSProperties = { boxSizing: 'border-box', minHeight: 34, padding: '6px 14px', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 18, background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', font: 'inherit', fontSize: 14, cursor: 'pointer' }
-const primaryButtonStyle: CSSProperties = { ...buttonStyle, borderColor: 'var(--dsw-alias-brand-primary)', background: 'var(--dsw-alias-brand-primary)', color: 'white' }
+const primaryButtonStyle: CSSProperties = { ...buttonStyle, border: '1px solid var(--dsw-alias-brand-primary)', background: 'var(--dsw-alias-brand-primary)', color: 'white' }
 const errorStyle: CSSProperties = { ...bodyStyle, color: 'var(--dsw-alias-state-error-primary)' }
 const quotaListStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 18, paddingTop: 2 }
 const quotaGroupStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10 }
@@ -60,6 +62,8 @@ const quotaTitleStyle: CSSProperties = { margin: 0, fontSize: 14, lineHeight: '2
 const quotaLabelStyle: CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-secondary)' }
 const progressTrackStyle: CSSProperties = { height: 8, overflow: 'hidden', borderRadius: 999, background: 'var(--dsw-alias-bg-layer-2, rgba(0, 0, 0, 0.08))' }
 const commandStyle: CSSProperties = { margin: 0, padding: '10px 12px', overflowX: 'auto', borderRadius: 8, background: 'var(--dsw-alias-bg-layer-2, rgba(0, 0, 0, 0.06))', color: 'var(--dsw-alias-label-primary)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13, lineHeight: '20px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }
+const importStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 14, borderTop: '1px solid var(--dsw-alias-border-l2)' }
+const successStyle: CSSProperties = { ...bodyStyle, color: 'var(--dsw-alias-state-success-primary, #22a06b)' }
 
 function progressFillStyle(percent: number): CSSProperties {
   return {
@@ -180,10 +184,27 @@ class AccountRequestError extends Error {
   }
 }
 
-async function jsonRequest<T>(path: string, method = 'GET', signal?: AbortSignal): Promise<T> {
+function importErrorMessage(
+  error: unknown,
+  t: OpenAICodexSettingsInjected['t'],
+): string {
+  if (!(error instanceof AccountRequestError)) return t('importFailed')
+  if (error.code === 'codex-auth-not-found') return t('importNotFound')
+  if (error.code === 'codex-auth-invalid') return t('importInvalid')
+  if (error.code === 'codex-auth-unsafe-file') return t('importUnsafe')
+  if (error.code === 'codex-auth-unreadable') return t('importUnreadable')
+  return t('importFailed')
+}
+
+async function jsonRequest<T>(
+  path: string,
+  method = 'GET',
+  signal?: AbortSignal,
+  headers: Record<string, string> = {},
+): Promise<T> {
   const response = await fetch(path, {
     method,
-    headers: { accept: 'application/json' },
+    headers: { accept: 'application/json', ...headers },
     credentials: 'same-origin',
     ...signal === undefined ? {} : { signal },
   })
@@ -202,6 +223,8 @@ export function OpenAICodexSettings({ t, configScope, embedded = false }: OpenAI
   if (t === undefined) throw new Error('OpenAI Codex settings requires its translation function')
   const [status, setStatus] = useState<AccountStatus>({ status: 'loading' })
   const [busy, setBusy] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importNotice, setImportNotice] = useState<{ kind: 'success' | 'error'; message: string } | undefined>()
   const [copied, setCopied] = useState(false)
   const [copyFailed, setCopyFailed] = useState(false)
   const mounted = useRef(true)
@@ -297,6 +320,43 @@ export function OpenAICodexSettings({ t, configScope, embedded = false }: OpenAI
     }
   }
 
+  const importCodexAuth = async (): Promise<void> => {
+    setBusy(true)
+    setImporting(true)
+    setImportNotice(undefined)
+    const attempt = async (overwrite: boolean): Promise<{ status: 'imported'; replaced: boolean }> => {
+      return jsonRequest<{ status: 'imported'; replaced: boolean }>(
+        OPENAI_CODEX_AUTH_IMPORT_PATH,
+        'POST',
+        undefined,
+        overwrite ? { [OPENAI_CODEX_IMPORT_OVERWRITE_HEADER]: 'confirm' } : {},
+      )
+    }
+    try {
+      let result
+      try {
+        result = await attempt(false)
+      } catch (error: unknown) {
+        if (!(error instanceof AccountRequestError) || error.code !== 'existing-credential') throw error
+        if (!window.confirm(t('importOverwriteConfirm'))) return
+        result = await attempt(true)
+      }
+      if (!mounted.current) return
+      setImportNotice({
+        kind: 'success',
+        message: t(result.replaced ? 'importReplaced' : 'importSucceeded'),
+      })
+      await refresh()
+    } catch (error: unknown) {
+      if (mounted.current) setImportNotice({ kind: 'error', message: importErrorMessage(error, t) })
+    } finally {
+      if (mounted.current) {
+        setImporting(false)
+        setBusy(false)
+      }
+    }
+  }
+
   const label = status.status === 'signed-in'
     ? t('signedIn')
     : status.status === 'loading'
@@ -351,6 +411,22 @@ export function OpenAICodexSettings({ t, configScope, embedded = false }: OpenAI
             </div>
           </div>
         ) : null}
+        {status.status === 'loading' || status.status === 'remote-web-origin-not-trusted' ? null : (
+          <div style={importStyle}>
+            <div>
+              <h3 style={quotaTitleStyle}>{t('importHeading')}</h3>
+              <p style={{ ...bodyStyle, marginTop: 4 }}>{t('importIntro')}</p>
+            </div>
+            <div style={rowStyle}>
+              <button type="button" style={buttonStyle} disabled={busy} onClick={() => { void importCodexAuth() }}>
+                {importing ? t('importWorking') : t('importButton')}
+              </button>
+            </div>
+            {importNotice === undefined
+              ? null
+              : <p role="status" style={importNotice.kind === 'success' ? successStyle : errorStyle}>{importNotice.message}</p>}
+          </div>
+        )}
         {status.status === 'signed-in'
           ? <UsageLimits
               usage={status.usage}

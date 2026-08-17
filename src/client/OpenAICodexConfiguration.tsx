@@ -24,7 +24,7 @@ const controlStyle: CSSProperties = { boxSizing: 'border-box', width: '100%', mi
 const actionsStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }
 const buttonsStyle: CSSProperties = { display: 'flex', gap: 8 }
 const buttonStyle: CSSProperties = { boxSizing: 'border-box', minHeight: 34, padding: '6px 14px', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 18, background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', font: 'inherit', fontSize: 13, cursor: 'pointer' }
-const primaryButtonStyle: CSSProperties = { ...buttonStyle, borderColor: 'var(--dsw-alias-brand-primary)', background: 'var(--dsw-alias-brand-primary)', color: 'white' }
+const primaryButtonStyle: CSSProperties = { ...buttonStyle, border: '1px solid var(--dsw-alias-brand-primary)', background: 'var(--dsw-alias-brand-primary)', color: 'white' }
 const errorStyle: CSSProperties = { ...bodyStyle, color: 'var(--dsw-alias-state-error-primary)' }
 const successStyle: CSSProperties = { ...bodyStyle, color: 'var(--dsw-alias-state-success-primary, #16825d)' }
 
@@ -38,6 +38,10 @@ const UNAVAILABLE_SNAPSHOT = {
   mode: 'memory' as const,
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 const CONFIG_FIELDS = [
   'enableSearch',
   'enableImageTool',
@@ -45,6 +49,9 @@ const CONFIG_FIELDS = [
   'searchMode',
   'searchContextSize',
   'searchMaxOutputTokens',
+  'contextWindow',
+  'proxyAddress',
+  'proxyPort',
 ] as const satisfies readonly (keyof OpenAICodexSettingsConfig)[]
 
 function sameConfig(
@@ -53,6 +60,27 @@ function sameConfig(
 ): boolean {
   return left !== undefined && right !== undefined
     && CONFIG_FIELDS.every(field => left[field] === right[field])
+}
+
+/** Whether the raw address string already carries an explicit port. */
+function addressHasPort(raw: string): boolean {
+  try {
+    return new URL(raw.includes('://') ? raw : `http://${raw}`).port !== ''
+  } catch {
+    return false
+  }
+}
+
+/** A proxy is either fully absent (blank) or fully valid: address plus a port. */
+function validProxyFields(
+  address: string | undefined,
+  port: number | undefined,
+): boolean {
+  const present = (address?.trim().length ?? 0) > 0
+  if (!present) return port === undefined
+  const portValid = port !== undefined
+    && Number.isInteger(port) && port >= 1 && port <= 65535
+  return addressHasPort(address!.trim()) || portValid
 }
 
 /** Edit the Host-owned llm-openai-codex settings section with Save/Discard staging. */
@@ -92,7 +120,12 @@ export function OpenAICodexConfiguration({ scope, t }: OpenAICodexConfigurationP
   const validTokens = draft !== undefined
     && Number.isInteger(draft.searchMaxOutputTokens)
     && draft.searchMaxOutputTokens > 0
-  const valid = validModel && validTokens
+  const validContextWindow = draft !== undefined
+    && (draft.contextWindow === undefined
+      || (Number.isSafeInteger(draft.contextWindow) && draft.contextWindow >= 1))
+  const validProxy = draft !== undefined
+    && validProxyFields(draft.proxyAddress, draft.proxyPort)
+  const valid = validModel && validTokens && validContextWindow && validProxy
 
   const save = async (): Promise<void> => {
     if (scope === undefined || draft === undefined || !snapshot.writable || !valid) return
@@ -101,11 +134,22 @@ export function OpenAICodexConfiguration({ scope, t }: OpenAICodexConfigurationP
     setFeedback('idle')
     try {
       for (const field of CONFIG_FIELDS) {
+        const target = desired[field]
         const accepted = scope.getSnapshot().value
-        if (accepted?.[field] === desired[field]) continue
-        await scope.set(field, desired[field])
-        if (scope.getSnapshot().value?.[field] !== desired[field]) {
-          throw new Error(`Host refused ${field}`)
+        if (accepted?.[field] === target) continue
+        if (target === undefined) {
+          const before = scope.getSnapshot()
+          await scope.unset(field)
+          const after = scope.getSnapshot().value
+          const baseValue = isRecord(before.base) ? before.base[field] : undefined
+          if (after?.[field] !== undefined && after?.[field] !== baseValue) {
+            throw new Error(`Host refused clearing ${field}`)
+          }
+        } else {
+          await scope.set(field, target)
+          if (scope.getSnapshot().value?.[field] !== target) {
+            throw new Error(`Host refused ${field}`)
+          }
         }
       }
       const accepted = scope.getSnapshot().value
@@ -212,8 +256,76 @@ export function OpenAICodexConfiguration({ scope, t }: OpenAICodexConfigurationP
           </label>
         </fieldset>
       )}
+      {draft === undefined ? null : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }} aria-disabled={!editable}>
+          <div>
+            <h3 style={headingStyle}>{t('contextWindowHeading')}</h3>
+            <p style={{ ...bodyStyle, marginTop: 4 }}>{t('contextWindowIntro')}</p>
+          </div>
+          <div style={formGridStyle}>
+            <label style={formFieldStyle}>
+              <span style={labelStyle}>{t('contextWindow')}</span>
+              <input
+                style={controlStyle}
+                type="number"
+                min={1}
+                max={Number.MAX_SAFE_INTEGER}
+                step={1}
+                value={draft.contextWindow === undefined ? '' : draft.contextWindow}
+                disabled={!editable}
+                placeholder={t('contextWindowPlaceholder')}
+                aria-invalid={!validContextWindow}
+                onChange={event => {
+                  const value = event.currentTarget.valueAsNumber
+                  update('contextWindow', Number.isNaN(value) ? undefined : value)
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      )}
+      {draft === undefined ? null : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }} aria-disabled={!editable}>
+          <div>
+            <h3 style={headingStyle}>{t('proxyHeading')}</h3>
+            <p style={{ ...bodyStyle, marginTop: 4 }}>{t('proxyIntro')}</p>
+          </div>
+          <div style={formGridStyle}>
+            <label style={formFieldStyle}>
+              <span style={labelStyle}>{t('proxyAddress')}</span>
+              <input
+                style={controlStyle}
+                value={draft.proxyAddress}
+                disabled={!editable}
+                placeholder={t('proxyAddressPlaceholder')}
+                aria-invalid={!validProxy}
+                onChange={event => { update('proxyAddress', event.currentTarget.value) }}
+              />
+            </label>
+            <label style={formFieldStyle}>
+              <span style={labelStyle}>{t('proxyPort')}</span>
+              <input
+                style={controlStyle}
+                type="number"
+                min={1}
+                max={65535}
+                step={1}
+                value={draft.proxyPort === undefined ? '' : draft.proxyPort}
+                disabled={!editable}
+                aria-invalid={!validProxy}
+                onChange={event => {
+                  const value = event.currentTarget.valueAsNumber
+                  update('proxyPort', Number.isNaN(value) ? undefined : value)
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      )}
       {!validModel && draft !== undefined ? <p style={errorStyle} role="alert">{t('invalidSearchModel')}</p> : null}
       {!validTokens && draft !== undefined ? <p style={errorStyle} role="alert">{t('invalidSearchTokens')}</p> : null}
+      {!validContextWindow && draft !== undefined ? <p style={errorStyle} role="alert">{t('invalidContextWindow')}</p> : null}
+      {!validProxy && draft !== undefined ? <p style={errorStyle} role="alert">{t('invalidProxy')}</p> : null}
       <p style={bodyStyle}>{t('routingNote')}</p>
       <div style={actionsStyle}>
         <span aria-live="polite">

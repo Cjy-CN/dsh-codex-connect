@@ -6,8 +6,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  OPENAI_CODEX_AUTH_IMPORT_PATH,
   OPENAI_CODEX_AUTH_LOGIN_PATH,
   OPENAI_CODEX_AUTH_LOGOUT_PATH,
+  OPENAI_CODEX_IMPORT_OVERWRITE_HEADER,
   OpenAICodexWebAuth,
   OPENAI_CODEX_AUTH_STATUS_PATH,
   REMOTE_WEB_ORIGIN_NOT_TRUSTED,
@@ -26,6 +28,7 @@ const mocked = vi.hoisted(() => ({
   logout: vi.fn(),
   status: vi.fn(),
   usage: vi.fn(),
+  importAuth: vi.fn(),
 }))
 
 vi.mock('../src/auth.ts', () => ({
@@ -37,6 +40,11 @@ vi.mock('../src/auth.ts', () => ({
 vi.mock('../src/usage.ts', async importOriginal => ({
   ...await importOriginal<typeof import('../src/usage.ts')>(),
   readOpenAICodexRateLimits: mocked.usage,
+}))
+
+vi.mock('../src/codex-auth-import.ts', async importOriginal => ({
+  ...await importOriginal<typeof import('../src/codex-auth-import.ts')>(),
+  importCodexAuthCredential: mocked.importAuth,
 }))
 
 const store = {} as OpenAICodexCredentialStore
@@ -92,6 +100,7 @@ function request(options: {
   host?: string
   origin?: string
   fetchSite?: string
+  overwrite?: string
 }): IncomingMessage {
   return {
     method: options.method ?? 'GET',
@@ -100,6 +109,7 @@ function request(options: {
       host: options.host ?? '127.0.0.1:3081',
       ...options.origin === undefined ? {} : { origin: options.origin },
       ...options.fetchSite === undefined ? {} : { 'sec-fetch-site': options.fetchSite },
+      ...options.overwrite === undefined ? {} : { [OPENAI_CODEX_IMPORT_OVERWRITE_HEADER]: options.overwrite },
     },
   } as unknown as IncomingMessage
 }
@@ -124,6 +134,7 @@ beforeEach(() => {
   mocked.status.mockResolvedValue({ authenticated: false })
   mocked.logout.mockResolvedValue(undefined)
   mocked.usage.mockResolvedValue({ rateLimits: [] })
+  mocked.importAuth.mockResolvedValue({ status: 'imported', replaced: false })
 })
 
 afterEach(async () => {
@@ -166,6 +177,7 @@ describe('OpenAI Codex Web OAuth boundary', () => {
     ['status', OPENAI_CODEX_AUTH_STATUS_PATH, 'GET'],
     ['login', OPENAI_CODEX_AUTH_LOGIN_PATH, 'POST'],
     ['logout', OPENAI_CODEX_AUTH_LOGOUT_PATH, 'POST'],
+    ['import', OPENAI_CODEX_AUTH_IMPORT_PATH, 'POST'],
   ] as const)('applies the remote-origin boundary to %s', async (_label, path, method) => {
     const route = captureRoutes().find(candidate => candidate.path === path)
     if (route === undefined) throw new Error(`${path} route was not registered`)
@@ -184,6 +196,7 @@ describe('OpenAI Codex Web OAuth boundary', () => {
     expect(mocked.status).not.toHaveBeenCalled()
     expect(mocked.login).not.toHaveBeenCalled()
     expect(mocked.logout).not.toHaveBeenCalled()
+    expect(mocked.importAuth).not.toHaveBeenCalled()
   })
 
   it('rejects a DNS-rebinding Host even when the peer and browser Origin agree', async () => {
@@ -228,6 +241,38 @@ describe('OpenAI Codex Web OAuth boundary', () => {
 
     expect(res.observed.status).toBe(200)
     expect(mocked.status).toHaveBeenCalled()
+  })
+
+  it('requires an explicit confirmed retry before replacing an existing credential', async () => {
+    const route = captureRoutes().find(candidate => candidate.path === OPENAI_CODEX_AUTH_IMPORT_PATH)
+    if (route === undefined) throw new Error('import route was not registered')
+    mocked.importAuth
+      .mockResolvedValueOnce({ status: 'confirmation-required' })
+      .mockResolvedValueOnce({ status: 'imported', replaced: true })
+
+    const first = response()
+    await route.handler(request({ method: 'POST' }), first)
+    expect(first.observed.status).toBe(409)
+    expect(JSON.parse(first.observed.body ?? 'null')).toEqual({ error: 'existing-credential' })
+    expect(mocked.importAuth).toHaveBeenNthCalledWith(1, store, { overwrite: false })
+
+    const confirmed = response()
+    await route.handler(request({ method: 'POST', overwrite: 'confirm' }), confirmed)
+    expect(confirmed.observed.status).toBe(200)
+    expect(JSON.parse(confirmed.observed.body ?? 'null')).toEqual({ status: 'imported', replaced: true })
+    expect(mocked.importAuth).toHaveBeenNthCalledWith(2, store, { overwrite: true })
+  })
+
+  it('rejects a forged overwrite header value without importing', async () => {
+    const route = captureRoutes().find(candidate => candidate.path === OPENAI_CODEX_AUTH_IMPORT_PATH)
+    if (route === undefined) throw new Error('import route was not registered')
+    const res = response()
+
+    await route.handler(request({ method: 'POST', overwrite: 'yes' }), res)
+
+    expect(res.observed.status).toBe(400)
+    expect(JSON.parse(res.observed.body ?? 'null')).toEqual({ error: 'invalid-overwrite-confirmation' })
+    expect(mocked.importAuth).not.toHaveBeenCalled()
   })
 
   it('reuses one login operation and one HTTPS challenge across concurrent callers', async () => {

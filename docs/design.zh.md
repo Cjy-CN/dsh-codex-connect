@@ -6,11 +6,13 @@
 
 bundle patch 只插入 `llm-openai-codex`，不会写入 `agent-default-model` 或 `web.searchProvider`。`enableSearch` 与 `enableImageTool` 默认均为 `false`；关闭时不会注册对应可选服务。
 
-Host 将 `llm-openai-codex` 注册为插件自有 settings namespace，并在 LLM 可配置 provider 目录中声明显示名为 `OpenAI Codex`。浏览器通过 Harness settings-scope transport 绑定该 namespace，把账户、额度以及带保存/放弃的能力配置放在现有“插件配置”卡片中。带 revision 防护的逐字段写入不会覆盖无关设置；提交后会即时协调搜索与图片能力的注册状态，且绝不写入默认模型或全局搜索 namespace。
+Host 将 `llm-openai-codex` 注册为插件自有 settings namespace，并在 LLM 可配置 provider 目录中声明显示名为 `OpenAI Codex`。浏览器通过 Harness settings-scope transport 绑定该 namespace，把账户、额度以及带保存/放弃的能力配置放在现有“插件配置”卡片中。带 revision 防护的逐字段写入不会覆盖无关设置；提交后会即时协调搜索与图片能力的注册状态，且绝不写入默认模型或全局搜索 namespace。可选 `contextWindow` 会让下一次 PiAiAdapter 操作使用覆盖了模型上下文容量的新 profile；已开始的请求继续使用自身捕获的 profile，清空设置后无需重启即可恢复上游目录值。
 
 ## OAuth 持久化
 
 插件使用 `$DSH_HOME/.openai-codex-auth.json`，与 Codex CLI/Desktop 状态分离。文件格式严格且有版本号；POSIX 上会拒绝组/其他用户可读文件。父目录和文件按仅所有者权限创建，写入采用原子替换，刷新修改使用 Harness 跨进程文件锁，返回给调用方的是凭据副本。浏览器 origin 授权单独存放于 `$DSH_HOME/.openai-codex-trusted-origins.json`，格式为 `version: 1`、`mode: "allowlist"` 和规范化的精确 HTTP(S) origin；其中不含 OAuth 内容，且只能通过独立 CLI 修改。
+
+显式导入操作允许 Host 读取有大小上限的普通 `$CODEX_HOME/auth.json`（默认 `~/.codex/auth.json`），并拒绝符号链接与组/其他用户可读的 POSIX mode。它同时接受当前扁平 `tokens` 与旧版 `tokens.chatgpt` OAuth 结构，只解析 access JWT 的过期时间和账户声明，再把规范化的 access、refresh、账户 ID 与过期时间写入插件存储。源文件不会被修改，凭证与源文件绝对路径都不会经过浏览器路由。若目标凭证已存在，未确认的请求会在读取源文件之前返回冲突；只有用户在弹窗中确认后的重试才能在目标文件锁内覆盖。这是一次性迁移，不是刷新令牌的共享同步。
 
 为兼容迁移，设置页路由、OAuth 路径和 provider id 不改名。浏览器请求默认只允许 loopback；远程请求必须使用当前 sidecar 中的精确有效 HTTP(S) origin，不能带 cross-site Fetch Metadata，若带 Origin 还必须精确匹配。每次请求都会重新读取 sidecar；未知字段或错误 mode 会快速失败。登录挑战只接受不含凭据的 HTTPS 地址；30 秒内未得到地址、provider 已结束但没有地址、退出登录或插件卸载时，所有 waiter 都会被清理。只有显式登录会输出授权 URL 或代码；状态输出会脱敏。doctor 只用 `lstat` 检查元数据，不打开文件。
 

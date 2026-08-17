@@ -9,9 +9,11 @@ import type { OpenAICodexSettingsKey } from '../src/client/locales.ts'
 import { DEFAULT_OPENAI_CODEX_SETTINGS } from '../src/settings-contract.ts'
 import type { OpenAICodexSettingsConfig } from '../src/settings-contract.ts'
 import {
+  OPENAI_CODEX_AUTH_IMPORT_PATH,
   OPENAI_CODEX_AUTH_LOGIN_PATH,
   OPENAI_CODEX_AUTH_LOGOUT_PATH,
   OPENAI_CODEX_AUTH_STATUS_PATH,
+  OPENAI_CODEX_IMPORT_OVERWRITE_HEADER,
 } from '../src/auth-paths.ts'
 
 function t(key: OpenAICodexSettingsKey, params: Record<string, unknown> = {}): string {
@@ -45,11 +47,12 @@ function popupFixture(): { popup: Window; close: ReturnType<typeof vi.fn>; repla
 function settingsScopeFixture(writable = true): {
   scope: SettingsScope<OpenAICodexSettingsConfig>
   set: ReturnType<typeof vi.fn>
+  unset: ReturnType<typeof vi.fn>
 } {
   let snapshot: SettingsScopeSnapshot<OpenAICodexSettingsConfig> = {
     status: 'ready',
-    value: { ...DEFAULT_OPENAI_CODEX_SETTINGS },
-    base: { ...DEFAULT_OPENAI_CODEX_SETTINGS },
+    value: { ...DEFAULT_OPENAI_CODEX_SETTINGS, contextWindow: undefined, proxyPort: undefined } as unknown as OpenAICodexSettingsConfig,
+    base: { ...DEFAULT_OPENAI_CODEX_SETTINGS, contextWindow: undefined, proxyPort: undefined } as unknown as OpenAICodexSettingsConfig,
     user: undefined,
     revision: 0,
     writable,
@@ -67,8 +70,26 @@ function settingsScopeFixture(writable = true): {
     }
     for (const listener of listeners) listener()
   })
+  const unset = vi.fn(async (field: string) => {
+    if (snapshot.value === undefined || !(field in snapshot.value)) throw new Error(`unknown field ${field}`)
+    const base = snapshot.base as Record<string, unknown> | undefined
+    const next = { ...snapshot.value } as Record<string, unknown>
+    const baseValue = base?.[field]
+    if (baseValue === undefined) delete next[field]
+    else next[field] = baseValue
+    const user = { ...typeof snapshot.user === 'object' && snapshot.user !== null ? snapshot.user : {} } as Record<string, unknown>
+    delete user[field]
+    snapshot = {
+      ...snapshot,
+      value: next as unknown as OpenAICodexSettingsConfig,
+      user,
+      revision: (snapshot.revision ?? 0) + 1,
+    }
+    for (const listener of listeners) listener()
+  })
   return {
     set,
+    unset,
     scope: {
       getSnapshot: () => snapshot,
       subscribe(listener) {
@@ -76,7 +97,7 @@ function settingsScopeFixture(writable = true): {
         return () => { listeners.delete(listener) }
       },
       set,
-      unset: vi.fn(async () => undefined),
+      unset,
     },
   }
 }
@@ -256,6 +277,89 @@ describe('OpenAI Codex Plugin configuration card', () => {
     expect((screen.getByRole('button', { name: en.loginAgain }) as HTMLButtonElement).disabled).toBe(false)
   })
 
+  it('imports a host-local Codex auth.json without sending credential contents through the browser', async () => {
+    let imported = false
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      const path = requestPath(input)
+      if (path === OPENAI_CODEX_AUTH_STATUS_PATH) {
+        return json(imported
+          ? { status: 'signed-in', usage: { rateLimits: [] } }
+          : { status: 'signed-out' })
+      }
+      expect(path).toBe(OPENAI_CODEX_AUTH_IMPORT_PATH)
+      expect(init?.method).toBe('POST')
+      expect(init?.body).toBeUndefined()
+      expect((init?.headers as Record<string, string>)[OPENAI_CODEX_IMPORT_OVERWRITE_HEADER]).toBeUndefined()
+      imported = true
+      return json({ status: 'imported', replaced: false })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<OpenAICodexSettings t={t} embedded />)
+    fireEvent.click(await screen.findByRole('button', { name: en.importButton }))
+
+    expect(await screen.findByText(en.importSucceeded)).toBeTruthy()
+    await waitFor(() => { expect(screen.getByText(en.signedIn)).toBeTruthy() })
+    expect(JSON.stringify(fetchMock.mock.calls)).not.toMatch(/access_token|refresh_token|account_id/u)
+  })
+
+  it('shows an overwrite prompt and leaves the existing credential untouched when cancelled', async () => {
+    let importCalls = 0
+    const fetchMock = vi.fn(async (input: string | URL | Request): Promise<Response> => {
+      const path = requestPath(input)
+      if (path === OPENAI_CODEX_AUTH_STATUS_PATH) return json({ status: 'signed-in', usage: { rateLimits: [] } })
+      expect(path).toBe(OPENAI_CODEX_AUTH_IMPORT_PATH)
+      importCalls += 1
+      return json({ error: 'existing-credential' }, 409)
+    })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<OpenAICodexSettings t={t} embedded />)
+    fireEvent.click(await screen.findByRole('button', { name: en.importButton }))
+
+    await waitFor(() => { expect(confirm).toHaveBeenCalledWith(en.importOverwriteConfirm) })
+    expect(importCalls).toBe(1)
+    expect(screen.queryByText(en.importReplaced)).toBeNull()
+  })
+
+  it('overwrites only after the user accepts the second confirmation', async () => {
+    let importCalls = 0
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      const path = requestPath(input)
+      if (path === OPENAI_CODEX_AUTH_STATUS_PATH) return json({ status: 'signed-in', usage: { rateLimits: [] } })
+      expect(path).toBe(OPENAI_CODEX_AUTH_IMPORT_PATH)
+      importCalls += 1
+      if (importCalls === 1) return json({ error: 'existing-credential' }, 409)
+      expect((init?.headers as Record<string, string>)[OPENAI_CODEX_IMPORT_OVERWRITE_HEADER]).toBe('confirm')
+      return json({ status: 'imported', replaced: true })
+    })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<OpenAICodexSettings t={t} embedded />)
+    fireEvent.click(await screen.findByRole('button', { name: en.importButton }))
+
+    expect(await screen.findByText(en.importReplaced)).toBeTruthy()
+    expect(confirm).toHaveBeenCalledWith(en.importOverwriteConfirm)
+    expect(importCalls).toBe(2)
+  })
+
+  it('surfaces a redacted missing-source import error and remains recoverable', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request): Promise<Response> => {
+      const path = requestPath(input)
+      if (path === OPENAI_CODEX_AUTH_STATUS_PATH) return json({ status: 'signed-out' })
+      return json({ error: 'codex-auth-not-found' }, 404)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<OpenAICodexSettings t={t} embedded />)
+    fireEvent.click(await screen.findByRole('button', { name: en.importButton }))
+
+    expect(await screen.findByText(en.importNotFound)).toBeTruthy()
+    expect((screen.getByRole('button', { name: en.importButton }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
   it('stages, discards, and saves optional capability settings in the same card', async () => {
     const fetchMock = vi.fn(async (): Promise<Response> => json({ status: 'signed-out' }))
     const { scope, set } = settingsScopeFixture()
@@ -285,6 +389,56 @@ describe('OpenAI Codex Plugin configuration card', () => {
     expect(set).toHaveBeenCalledWith('searchModel', 'gpt-search-custom')
     expect(set).toHaveBeenCalledWith('searchMode', 'live')
     expect(set).toHaveBeenCalledWith('searchMaxOutputTokens', 2048)
+  })
+
+  it('saves a global context window override and clears it back to the provider default', async () => {
+    const fetchMock = vi.fn(async (): Promise<Response> => json({ status: 'signed-out' }))
+    const { scope, set, unset } = settingsScopeFixture()
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<OpenAICodexSettings t={t} configScope={scope} embedded />)
+    const input = await screen.findByRole('spinbutton', { name: en.contextWindow }) as HTMLInputElement
+    expect(input.value).toBe('')
+
+    fireEvent.change(input, { target: { value: '0' } })
+    expect(screen.getByText(en.invalidContextWindow)).toBeTruthy()
+    expect((screen.getByRole('button', { name: en.save }) as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.change(input, { target: { value: '200000' } })
+    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    expect(await screen.findByText(en.settingsSaved)).toBeTruthy()
+    expect(set).toHaveBeenCalledWith('contextWindow', 200000)
+
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    expect(await screen.findByText(en.settingsSaved)).toBeTruthy()
+    expect(unset).toHaveBeenCalledWith('contextWindow')
+  })
+
+  it('saves proxy settings and clears them with an unset', async () => {
+    const fetchMock = vi.fn(async (): Promise<Response> => json({ status: 'signed-out' }))
+    const { scope, set, unset } = settingsScopeFixture()
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<OpenAICodexSettings t={t} configScope={scope} embedded />)
+    const address = await screen.findByRole('textbox', { name: en.proxyAddress }) as HTMLInputElement
+    const port = screen.getByRole('spinbutton', { name: en.proxyPort }) as HTMLInputElement
+    expect(address.value).toBe('')
+    expect(port.value).toBe('')
+
+    fireEvent.change(address, { target: { value: '127.0.0.1' } })
+    fireEvent.change(port, { target: { value: '7890' } })
+    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    expect(await screen.findByText(en.settingsSaved)).toBeTruthy()
+    expect(set).toHaveBeenCalledWith('proxyAddress', '127.0.0.1')
+    expect(set).toHaveBeenCalledWith('proxyPort', 7890)
+
+    fireEvent.change(address, { target: { value: '' } })
+    fireEvent.change(port, { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: en.save }))
+    expect(await screen.findByText(en.settingsSaved)).toBeTruthy()
+    expect(set).toHaveBeenCalledWith('proxyAddress', '')
+    expect(unset).toHaveBeenCalledWith('proxyPort')
   })
 
   it('disables capability edits when the Host settings document is read-only', async () => {
